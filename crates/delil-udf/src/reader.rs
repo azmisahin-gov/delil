@@ -564,15 +564,17 @@ mod tests {
 
     #[test]
     fn header_and_footer_are_extracted() {
-        let mut doc = Doc::default();
-        doc.header = Some(crate::model::Header {
-            paragraphs: vec![Paragraph::text("ÜSTBİLGİ")],
-        });
-        doc.footer = Some(crate::model::Footer {
-            paragraphs: vec![Paragraph::text("ALTBİLGİ")],
-            page_number_spec: Some("BSP32_40".to_string()),
+        let mut doc = Doc {
+            header: Some(crate::model::Header {
+                paragraphs: vec![Paragraph::text("ÜSTBİLGİ")],
+            }),
+            footer: Some(crate::model::Footer {
+                paragraphs: vec![Paragraph::text("ALTBİLGİ")],
+                page_number_spec: Some("BSP32_40".to_string()),
+                ..Default::default()
+            }),
             ..Default::default()
-        });
+        };
         doc.push_paragraph(Paragraph::text("gövde"));
         let xml = document_to_content_xml(&doc);
         let parsed = parse_content_xml(xml.as_bytes()).unwrap();

@@ -450,7 +450,7 @@ mod tests {
                 return Err(TranscriptionError::Inference("geçici hata".into()));
             }
             let dur = samples.len() as f64 / crate::SAMPLE_RATE as f64;
-            if let Some(cb) = progress.as_deref_mut() {
+            if let Some(cb) = progress.as_mut() {
                 cb(dur, dur);
             }
             Ok(TranscriptionResult {
@@ -533,8 +533,10 @@ mod tests {
         );
 
         // Farklı ayar imzası -> yeni iş.
-        let mut opts = TranscriptionOptions::default();
-        opts.language = Some("en".into());
+        let opts = TranscriptionOptions {
+            language: Some("en".into()),
+            ..Default::default()
+        };
         let it = QueueItem::new(
             "a",
             PathBuf::from("/tmp/a.wav"),

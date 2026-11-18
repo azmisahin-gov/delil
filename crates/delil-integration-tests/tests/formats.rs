@@ -100,7 +100,7 @@ fn video_containers_flagged_audio_only_extraction() {
     let mp4 = {
         let mut v = vec![0, 0, 0, 0x20];
         v.extend_from_slice(b"ftypisom");
-        v.extend(std::iter::repeat(0).take(64));
+        v.extend(std::iter::repeat_n(0, 64));
         v
     };
     let c = delil_audio::detect_container(&mp4).unwrap();

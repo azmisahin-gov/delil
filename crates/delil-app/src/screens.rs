@@ -291,13 +291,12 @@ fn draw_processing(app: &mut DelilApp, ui: &mut egui::Ui) {
 
     ui.add_space(16.0);
     ui.horizontal(|ui| {
-        if app.workflow.finished {
-            if ui
+        if app.workflow.finished
+            && ui
                 .add_sized([200.0, 36.0], egui::Button::new("Kontrol ekranına geç"))
                 .clicked()
-            {
-                app.screen = Screen::Review;
-            }
+        {
+            app.screen = Screen::Review;
         }
         if app.workflow.failed.is_some() && ui.button("Geri dön").clicked() {
             app.screen = Screen::NewInvestigation;
@@ -543,7 +542,7 @@ fn draw_waveform(ui: &mut egui::Ui, wf: &delil_audio::Waveform, position: f64) {
         let y2 = mid - lo * half;
         painter.line_segment(
             [egui::pos2(x, y1), egui::pos2(x, y2.max(y1 + 0.5))],
-            egui::Stroke::new(w.max(0.5), egui::Color32::from_rgb(90, 160, 240)),
+            egui::Stroke::new(w.max(0.5_f32), egui::Color32::from_rgb(90, 160, 240)),
         );
     }
     // Geçerli konum imleci.
@@ -552,7 +551,7 @@ fn draw_waveform(ui: &mut egui::Ui, wf: &delil_audio::Waveform, position: f64) {
         let x = rect.left() + frac * rect.width();
         painter.line_segment(
             [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
-            egui::Stroke::new(1.5, egui::Color32::from_rgb(240, 80, 80)),
+            egui::Stroke::new(1.5_f32, egui::Color32::from_rgb(240, 80, 80)),
         );
     }
 }

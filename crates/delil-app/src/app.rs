@@ -307,12 +307,10 @@ fn dirs_case_root() -> Option<PathBuf> {
 
 /// Transkripsiyon modeli mevcut mu?
 fn transcription_model_available() -> bool {
-    for var in ["DELIL_MODEL_DIR"] {
-        if let Ok(d) = std::env::var(var) {
-            let p = PathBuf::from(d);
-            if p.join("model.safetensors").exists() {
-                return true;
-            }
+    if let Ok(d) = std::env::var("DELIL_MODEL_DIR") {
+        let p = PathBuf::from(d);
+        if p.join("model.safetensors").exists() {
+            return true;
         }
     }
     if let Ok(exe) = std::env::current_exe() {

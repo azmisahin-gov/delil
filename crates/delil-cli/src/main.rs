@@ -192,10 +192,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             if devices.is_empty() {
                 println!("Bağlı harici aygıt bulunamadı.");
             } else {
-                println!(
-                    "{:<24} {:<12} {:<6} {}",
-                    "Kök", "Tür", "Sistem", "Çıkarılabilir"
-                );
+                println!("{:<24} {:<12} {:<6} Çıkarılabilir", "Kök", "Tür", "Sistem");
                 for d in &devices {
                     println!(
                         "{:<24} {:<12} {:<6} {}",

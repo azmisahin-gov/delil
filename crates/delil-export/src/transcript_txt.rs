@@ -68,7 +68,7 @@ pub fn render_transcript_txt(transcript: &Transcript) -> String {
         }
     }
 
-    out.push_str("\n");
+    out.push('\n');
     out.push_str("Not: Bu kopya bilirkişi incelemesine uygun birebir transkript taslağıdır.\n");
     out.push_str("Konuşmacı etiketleri gerçek kişi kimliği anlamına gelmez.\n");
     out

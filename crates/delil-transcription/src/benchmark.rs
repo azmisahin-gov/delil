@@ -130,6 +130,7 @@ pub fn compute_cer(reference: &str, hypothesis: &str) -> f64 {
 }
 
 /// Hizalamadan S/D/I sayılarını çıkarır (basit dinamik programlama geri izleme).
+#[allow(clippy::needless_range_loop)]
 fn align_counts(r: &[String], h: &[String]) -> (usize, usize, usize) {
     let n = r.len();
     let m = h.len();

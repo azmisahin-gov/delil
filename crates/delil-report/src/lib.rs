@@ -372,11 +372,13 @@ mod tests {
     #[test]
     fn generates_report_with_all_sections() {
         let case = sample_case();
-        let mut opts = ReportOptions::default();
-        opts.expert = ExpertInfo {
-            full_name: Some("Dr. E. F.".into()),
-            title: Some("Bilirkişi".into()),
-            registry_number: Some("12345".into()),
+        let opts = ReportOptions {
+            expert: ExpertInfo {
+                full_name: Some("Dr. E. F.".into()),
+                title: Some("Bilirkişi".into()),
+                registry_number: Some("12345".into()),
+            },
+            ..Default::default()
         };
         let r = generate_report(&case, &opts).unwrap();
         assert_eq!(r.cover_title, "BİLİRKİŞİ RAPORU");

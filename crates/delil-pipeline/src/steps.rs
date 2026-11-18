@@ -297,8 +297,10 @@ impl<'a> PipelineRunner<'a> {
             StepState::Running { progress: 0.0 },
             "Rapor hazırlanıyor",
         );
-        let mut opts = delil_report::ReportOptions::default();
-        opts.expert = self.config.expert.clone();
+        let opts = delil_report::ReportOptions {
+            expert: self.config.expert.clone(),
+            ..Default::default()
+        };
         let report = delil_report::generate_report(&case, &opts)?;
         // Eksik zorunlu alanlar için istisna kaydı.
         for m in &report.missing_fields {
@@ -871,7 +873,7 @@ mod tests {
         v.extend_from_slice(&16u16.to_le_bytes());
         v.extend_from_slice(b"data");
         v.extend_from_slice(&data_len.to_le_bytes());
-        v.extend(std::iter::repeat(0u8).take(data_len as usize));
+        v.extend(std::iter::repeat_n(0u8, data_len as usize));
         let mut f = std::fs::File::create(path).unwrap();
         f.write_all(&v).unwrap();
     }
@@ -881,11 +883,13 @@ mod tests {
     #[test]
     fn report_to_udf_contains_all_sections() {
         let case = Case::new("/tmp/c");
-        let mut opts = delil_report::ReportOptions::default();
-        opts.expert = ExpertInfo {
-            full_name: Some("Dr. X".into()),
-            title: Some("Bilirkişi".into()),
-            registry_number: Some("99".into()),
+        let opts = delil_report::ReportOptions {
+            expert: ExpertInfo {
+                full_name: Some("Dr. X".into()),
+                title: Some("Bilirkişi".into()),
+                registry_number: Some("99".into()),
+            },
+            ..Default::default()
         };
         let mut c = case;
         c.assignment.case_number = Some("2024/1".into());

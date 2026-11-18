@@ -544,7 +544,7 @@ fn strip_question_number(line: &str) -> &str {
         idx += 1;
     }
     if idx > 0 && idx < line.len() {
-        return line[idx..].trim_start_matches(|c: char| matches!(c, '.' | ')' | '-' | ':' | ' '));
+        return line[idx..].trim_start_matches(['.', ')', '-', ':', ' ']);
     }
     line
 }

@@ -233,9 +233,7 @@ fn parse_wav(bytes: &[u8], info: &mut AudioTechnicalInfo) {
                 data_len = Some(size as u32);
             }
             b"bext" => {
-                if info.container != "BWF" {
-                    info.container = "BWF".into();
-                }
+                info.container = "BWF".into();
             }
             _ => {}
         }
@@ -357,7 +355,7 @@ mod tests {
         v.extend_from_slice(&bits.to_le_bytes());
         v.extend_from_slice(b"data");
         v.extend_from_slice(&data_len.to_le_bytes());
-        v.extend(std::iter::repeat(0u8).take(data_len as usize));
+        v.extend(std::iter::repeat_n(0u8, data_len as usize));
         v
     }
 
@@ -381,27 +379,27 @@ mod tests {
     #[test]
     fn detect_mp3_from_id3() {
         let mut v = b"ID3\x04\x00\x00".to_vec();
-        v.extend(std::iter::repeat(0).take(100));
+        v.extend(std::iter::repeat_n(0, 100));
         assert_eq!(detect_container(&v), Some(Container::Mp3));
     }
 
     #[test]
     fn detect_flac() {
         let mut v = b"fLaC".to_vec();
-        v.extend(std::iter::repeat(0).take(100));
+        v.extend(std::iter::repeat_n(0, 100));
         assert_eq!(detect_container(&v), Some(Container::Flac));
     }
 
     #[test]
     fn detect_ogg_and_opus() {
         let mut ogg = b"OggS".to_vec();
-        ogg.extend(std::iter::repeat(0).take(100));
+        ogg.extend(std::iter::repeat_n(0, 100));
         assert_eq!(detect_container(&ogg), Some(Container::Ogg));
 
         let mut opus = b"OggS".to_vec();
-        opus.extend(std::iter::repeat(0).take(20));
+        opus.extend(std::iter::repeat_n(0, 20));
         opus.extend_from_slice(b"OpusHead");
-        opus.extend(std::iter::repeat(0).take(20));
+        opus.extend(std::iter::repeat_n(0, 20));
         assert_eq!(detect_container(&opus), Some(Container::Opus));
     }
 
@@ -409,35 +407,35 @@ mod tests {
     fn detect_mp4_and_mov() {
         let mut mp4 = vec![0, 0, 0, 0x20];
         mp4.extend_from_slice(b"ftypM4A ");
-        mp4.extend(std::iter::repeat(0).take(50));
+        mp4.extend(std::iter::repeat_n(0, 50));
         assert_eq!(detect_container(&mp4), Some(Container::M4a));
 
         let mut mov = vec![0, 0, 0, 0x20];
         mov.extend_from_slice(b"ftypqt  ");
-        mov.extend(std::iter::repeat(0).take(50));
+        mov.extend(std::iter::repeat_n(0, 50));
         assert_eq!(detect_container(&mov), Some(Container::Mov));
     }
 
     #[test]
     fn detect_matroska_and_webm() {
         let mut mkv = vec![0x1A, 0x45, 0xDF, 0xA3];
-        mkv.extend(std::iter::repeat(0).take(60));
+        mkv.extend(std::iter::repeat_n(0, 60));
         assert_eq!(detect_container(&mkv), Some(Container::Mkv));
 
         let mut webm = vec![0x1A, 0x45, 0xDF, 0xA3];
         webm.extend_from_slice(b"webm");
-        webm.extend(std::iter::repeat(0).take(60));
+        webm.extend(std::iter::repeat_n(0, 60));
         assert_eq!(detect_container(&webm), Some(Container::WebM));
     }
 
     #[test]
     fn detect_amr_and_wma() {
         let mut amr = b"#!AMR".to_vec();
-        amr.extend(std::iter::repeat(0).take(20));
+        amr.extend(std::iter::repeat_n(0, 20));
         assert_eq!(detect_container(&amr), Some(Container::Amr));
 
         let mut wma = b"\x30\x26\xB2\x75\x8E\x66\xCF\x11\xA6\xD9\x00\xAA\x00\x62\xCE\x6C".to_vec();
-        wma.extend(std::iter::repeat(0).take(20));
+        wma.extend(std::iter::repeat_n(0, 20));
         assert_eq!(detect_container(&wma), Some(Container::Wma));
     }
 
