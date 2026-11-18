@@ -77,9 +77,9 @@ echo "  Model bütünlüğü doğrulandı."
 
 ISS="$ROOT/packaging/windows/delil.iss"
 [ -f "$ISS" ] || fail "Inno Setup betiği bulunamadı: $ISS"
-GUID="$(grep -m1 '^AppId=' "$ISS" | sed 's/AppId={{\(.*\)}}/\1/')"
+GUID="$(grep -m1 '^AppId=' "$ISS" | grep -oE '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}')"
 if ! echo "$GUID" | grep -Eq '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'; then
-  fail "Geçersiz AppId GUID: '$GUID' (beklenen 8-4-4-4-12 onaltılık biçim)"
+  fail "Geçersiz veya eksik AppId GUID: '$GUID' (beklenen 8-4-4-4-12 onaltılık biçim)"
 fi
 echo "  Inno Setup GUID geçerli: $GUID"
 
