@@ -177,13 +177,18 @@ impl CandleWhisper {
         Ok(pairs[0].0.to_string())
     }
 
-    /// Bir mel parçasını çözer (token'lar ve metin).
+    /// Bir mel parçasını çözer: token'lar, metin ve kalite sinyalleri.
+    ///
+    /// Döndürülen `no_speech_prob` ve `avg_logprob`, kalite kontrolünde
+    /// "sessizlikte metin üretilmesi" ve "şüpheli model çıktısı" durumlarını
+    /// tespit etmek için kullanılır. Bu değerler **gerçek doğruluk yüzdesi
+    /// olarak sunulmaz**; yalnızca iç sinyaldir.
     fn decode_chunk(
         &mut self,
         mel: &Tensor,
         language_token: Option<u32>,
         timestamps: bool,
-    ) -> candle::Result<(Vec<u32>, String)> {
+    ) -> candle::Result<DecodedChunk> {
         let audio_features = self.encoder_forward(mel, true)?;
         let sample_len = self.config.max_target_positions / 2;
         let suppress_tokens: Vec<f32> = (0..self.config.vocab_size as u32)
@@ -201,6 +206,9 @@ impl CandleWhisper {
         let transcribe_token = token_id(&self.tokenizer, m::TRANSCRIBE_TOKEN)?;
         let eot_token = token_id(&self.tokenizer, m::EOT_TOKEN)?;
         let no_timestamps_token = token_id(&self.tokenizer, m::NO_TIMESTAMPS_TOKEN)?;
+        let no_speech_token = m::NO_SPEECH_TOKENS
+            .iter()
+            .find_map(|t| self.tokenizer.token_to_id(t));
 
         let mut tokens = vec![sot_token];
         if let Some(l) = language_token {
@@ -211,9 +219,25 @@ impl CandleWhisper {
             tokens.push(no_timestamps_token);
         }
 
+        let mut sum_logprob = 0f64;
+        let mut counted = 0usize;
+        let mut no_speech_prob = f64::NAN;
+
         for i in 0..sample_len {
             let tokens_t = Tensor::new(tokens.as_slice(), &self.device)?.unsqueeze(0)?;
             let ys = self.decoder_forward(&tokens_t, &audio_features, i == 0)?;
+
+            // İlk adımda "konuşma yok" olasılığını oku (referans uygulamayla
+            // aynı yöntem). Bu, sessizlikte üretilen metni elemek için
+            // kullanılır.
+            if i == 0 {
+                if let Some(ns) = no_speech_token {
+                    let logits0 = self.decoder_final_linear(&ys.i(..1)?)?.i(0)?.i(0)?;
+                    no_speech_prob =
+                        softmax(&logits0, 0)?.i(ns as usize)?.to_scalar::<f32>()? as f64;
+                }
+            }
+
             let (_, seq_len, _) = ys.dims3()?;
             let logits = self
                 .decoder_final_linear(&ys.i((..1, seq_len - 1..))?)?
@@ -227,6 +251,16 @@ impl CandleWhisper {
                 .max_by(|(_, a), (_, b)| a.total_cmp(b))
                 .map(|(i, _)| i as u32)
                 .unwrap();
+
+            // Seçilen token'ın olasılığını topla (ortalama log-olasılık).
+            let prob = softmax(&logits, D::Minus1)?
+                .i(next_token as usize)?
+                .to_scalar::<f32>()? as f64;
+            if prob > 0.0 {
+                sum_logprob += prob.ln();
+                counted += 1;
+            }
+
             tokens.push(next_token);
             if next_token == eot_token || tokens.len() > self.config.max_target_positions {
                 break;
@@ -236,7 +270,40 @@ impl CandleWhisper {
             .tokenizer
             .decode(&tokens, true)
             .map_err(|e| candle::Error::Msg(e.to_string()))?;
-        Ok((tokens, text))
+        let avg_logprob = if counted > 0 {
+            sum_logprob / counted as f64
+        } else {
+            f64::NAN
+        };
+        Ok(DecodedChunk {
+            tokens,
+            text,
+            no_speech_prob,
+            avg_logprob,
+        })
+    }
+}
+
+/// Bir mel parçasının çözüm sonucu (iç kullanım).
+struct DecodedChunk {
+    tokens: Vec<u32>,
+    text: String,
+    /// "Konuşma yok" olasılığı (ham; doğruluk yüzdesi değildir).
+    no_speech_prob: f64,
+    /// Ortalama log-olasılık (ham).
+    avg_logprob: f64,
+}
+
+impl DecodedChunk {
+    /// Bu parça sessizlik olarak değerlendirilmeli mi?
+    ///
+    /// Referans Whisper uygulamasıyla aynı eşikler kullanılır: yüksek
+    /// "konuşma yok" olasılığı **ve** düşük ortalama log-olasılık birlikte
+    /// görülürse parça elenir. Böylece sessizlikte üretilen halüsinasyon
+    /// metni rapora girmez.
+    fn is_likely_silence(&self) -> bool {
+        self.no_speech_prob > m::NO_SPEECH_THRESHOLD
+            && (self.avg_logprob.is_nan() || self.avg_logprob < m::LOGPROB_THRESHOLD)
     }
 }
 
@@ -332,22 +399,42 @@ impl TranscriptionEngine for CandleWhisper {
                 .map_err(|e| TranscriptionError::Inference(e.to_string()))?;
             let segment_duration = (segment_size * m::HOP_LENGTH) as f64 / m::SAMPLE_RATE as f64;
 
-            let (_tokens, text) = self
+            let decoded = self
                 .decode_chunk(&mel_segment, language_token, options.timestamps)
                 .map_err(|e| TranscriptionError::Inference(e.to_string()))?;
 
+            // Sessizlikte üretilen halüsinasyon metnini ele: yüksek "konuşma
+            // yok" olasılığı ve düşük log-olasılık birlikte görülürse bu parça
+            // atlanır. Böylece rapora uydurma metin girmez.
+            if decoded.is_likely_silence() {
+                seek += segment_size;
+                if let Some(cb) = progress.as_deref_mut() {
+                    cb(
+                        seek as f64 * m::HOP_LENGTH as f64 / m::SAMPLE_RATE as f64,
+                        total_frames as f64 * m::HOP_LENGTH as f64 / m::SAMPLE_RATE as f64,
+                    );
+                }
+                continue;
+            }
+
             // Token'ları zaman kodlu segmentlere ayır.
-            let parsed = if options.timestamps {
-                split_by_timestamps(&self.tokenizer, &_tokens, time_offset)
+            let mut parsed = if options.timestamps {
+                split_by_timestamps(&self.tokenizer, &decoded.tokens, time_offset)
             } else {
                 vec![Segment {
                     start: time_offset,
                     end: time_offset + segment_duration,
-                    text: text.clone(),
+                    text: decoded.text.clone(),
                     avg_logprob: None,
                     no_speech_prob: None,
                 }]
             };
+            // Kalite sinyallerini segmentlere iliştir (rapora yüzde olarak
+            // değil, iç sinyal olarak girer).
+            for s in parsed.iter_mut() {
+                s.avg_logprob = Some(decoded.avg_logprob);
+                s.no_speech_prob = Some(decoded.no_speech_prob);
+            }
             segments.extend(parsed);
 
             seek += segment_size;

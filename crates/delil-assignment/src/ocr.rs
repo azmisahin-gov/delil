@@ -3,14 +3,38 @@
 //! Taranmış/görsel belgeler için `ocrs` motoru kullanılır. OCR tamamen
 //! yereldir; internet gerektirmez. Türkçe karakterler desteklenir.
 //!
-//! Model dosyaları (`text-detection.onnx`, `text-recognition.onnx`) kurulum
-//! paketine dahil edilir; kullanıcıdan ayrı indirme istenmez. Model yolu
-//! `DELIL_OCR_MODEL_DIR` ortam değişkeniyle veya yürütülebilir dosyanın
-//! yanındaki `models/ocr` diziniyle belirlenir.
+//! Model dosyaları kurulum paketine dahil edilir; kullanıcıdan ayrı indirme
+//! istenmez. Model yolu `DELIL_OCR_MODEL_DIR` ortam değişkeniyle veya
+//! yürütülebilir dosyanın yanındaki `models/ocr` diziniyle belirlenir.
+//!
+//! Beklenen dosya adları (ocrs modelleri, `robertknight/ocrs`):
+//! * `text-detection.rten`
+//! * `text-recognition.rten`
+//!
+//! `.onnx` uzantılı sürümler de kabul edilir. Modeller **CC-BY-SA-4.0**
+//! lisanslıdır; yeniden dağıtımda atıf ve lisans bilgisi korunur
+//! (bkz. `docs/OCR_LISANS.md`).
 
 use super::{AssignmentError, ExtractedText};
 use delil_core::DocumentReadMethod;
 use std::path::{Path, PathBuf};
+
+/// OCR model dosya adı adayları: (tespit, tanıma).
+///
+/// İlk eşleşen çift kullanılır. `.rten` tercih edilir (saf Rust çalışma
+/// zamanı); `.onnx` yedeği de desteklenir.
+const MODEL_NAME_CANDIDATES: &[(&str, &str)] = &[
+    ("text-detection.rten", "text-recognition.rten"),
+    (
+        "text-detection-ssfbcj81.rten",
+        "text-rec-checkpoint-s52qdbqt.rten",
+    ),
+    ("text-detection.onnx", "text-recognition.onnx"),
+    (
+        "text-detection-ssfbcj81.onnx",
+        "text-rec-checkpoint-s52qdbqt.onnx",
+    ),
+];
 
 /// OCR model dizinini belirler.
 pub fn model_dir() -> Option<PathBuf> {
@@ -45,6 +69,18 @@ pub fn model_dir() -> Option<PathBuf> {
     None
 }
 
+/// Model dizinindeki tespit ve tanıma modeli yollarını bulur.
+pub fn resolve_model_files(dir: &Path) -> Option<(PathBuf, PathBuf)> {
+    for (det, rec) in MODEL_NAME_CANDIDATES {
+        let d = dir.join(det);
+        let r = dir.join(rec);
+        if d.exists() && r.exists() {
+            return Some((d, r));
+        }
+    }
+    None
+}
+
 /// Görsel belgeyi OCR ile okur.
 pub fn extract(path: &Path) -> Result<ExtractedText, AssignmentError> {
     let text = run_ocr(path)?;
@@ -65,15 +101,12 @@ pub fn run_ocr(path: &Path) -> Result<String, AssignmentError> {
             "OCR model dizini bulunamadı. Kurulum paketi OCR modellerini içermelidir.".into(),
         )
     })?;
-    let det = dir.join("text-detection.onnx");
-    let rec = dir.join("text-recognition.onnx");
-    if !det.exists() || !rec.exists() {
-        return Err(AssignmentError::Parse(format!(
-            "OCR model dosyaları eksik: {} / {}",
-            det.display(),
-            rec.display()
-        )));
-    }
+    let (det, rec) = resolve_model_files(&dir).ok_or_else(|| {
+        AssignmentError::Parse(format!(
+            "OCR model dosyaları eksik ({}). Beklenen: text-detection.rten ve text-recognition.rten.",
+            dir.display()
+        ))
+    })?;
 
     let detection_model = Model::load_file(&det)
         .map_err(|e| AssignmentError::Parse(format!("Tespit modeli yüklenemedi: {e}")))?;
@@ -128,5 +161,22 @@ mod tests {
         // Model yolu geçersiz olduğundan model yüklenemedi hatası beklenir.
         assert!(err.to_string().contains("model") || err.to_string().contains("Model"));
         std::env::remove_var("DELIL_OCR_MODEL_DIR");
+    }
+
+    #[test]
+    fn resolve_model_files_finds_rten_pair() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("text-detection.rten"), b"x").unwrap();
+        std::fs::write(dir.path().join("text-recognition.rten"), b"y").unwrap();
+        let (d, r) = resolve_model_files(dir.path()).unwrap();
+        assert!(d.ends_with("text-detection.rten"));
+        assert!(r.ends_with("text-recognition.rten"));
+    }
+
+    #[test]
+    fn resolve_model_files_none_when_incomplete() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("text-detection.rten"), b"x").unwrap();
+        assert!(resolve_model_files(dir.path()).is_none());
     }
 }

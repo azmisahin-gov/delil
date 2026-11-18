@@ -14,7 +14,10 @@
 #endif
 
 [Setup]
-AppId={{8F3C1A52-9B7E-4E2D-9C1A-DELIL0000001}
+; AppId, Windows yükleme kaydı için kalıcı benzersiz GUID'dir.
+; Sürümler arası sabit kalmalıdır (yükseltmelerin tanınması için).
+; Değer `uuidgen`/`uuid.uuid5` ile üretildi ve bu ürüne sabitlendi.
+AppId={{1767A283-CC0D-5120-A7DB-033D8319E4E3}
 AppName=DELİL
 AppVersion={#MyAppVersion}
 AppVerName=DELİL {#MyAppVersion}

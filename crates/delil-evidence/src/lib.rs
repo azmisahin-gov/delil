@@ -103,6 +103,78 @@ pub enum AmbiguityError {
     MultipleCandidates(usize),
 }
 
+/// Aygıt değişiklik izleyicisi (şartname 6.1).
+///
+/// Uygulama açıkken takılan/çıkarılan USB, SD ve harici diskleri otomatik
+/// algılar. İzleme bir arka plan iş parçacığında yapılır; değişiklik olduğunda
+/// güncel aygıt listesi bir kanal üzerinden iletilir.
+///
+/// Windows'ta `WM_DEVICECHANGE` yerine periyodik sürücü taraması kullanılır;
+/// bu, ayrı bir pencere iletisi döngüsü gerektirmeden masaüstü arayüzüyle
+/// uyumlu, güvenilir bir yaklaşımdır. Tarama aralığı 2 saniyedir.
+pub struct DeviceWatcher {
+    handle: Option<std::thread::JoinHandle<()>>,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    rx: std::sync::mpsc::Receiver<Vec<DetectedDevice>>,
+}
+
+impl DeviceWatcher {
+    /// İzlemeyi başlatır ve ilk aygıt listesini hemen iletir.
+    pub fn start() -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop2 = stop.clone();
+        let handle = std::thread::spawn(move || {
+            let mut last: Vec<DetectedDevice> = Vec::new();
+            loop {
+                if stop2.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
+                let now = detect_devices();
+                if device_set_changed(&last, &now) {
+                    last = now.clone();
+                    if tx.send(now).is_err() {
+                        break;
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+        });
+        Self {
+            handle: Some(handle),
+            stop,
+            rx,
+        }
+    }
+
+    /// Yeni bir aygıt listesi geldiyse döndürür (yoksa `None`).
+    pub fn poll(&self) -> Option<Vec<DetectedDevice>> {
+        match self.rx.try_recv() {
+            Ok(v) => Some(v),
+            Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => None,
+        }
+    }
+}
+
+impl Drop for DeviceWatcher {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Some(h) = self.handle.take() {
+            let _ = h.join();
+        }
+    }
+}
+
+/// İki aygıt listesi arasında anlamlı fark var mı (kök yollar kümesi)?
+fn device_set_changed(a: &[DetectedDevice], b: &[DetectedDevice]) -> bool {
+    let mut ra: Vec<&str> = a.iter().map(|d| d.root.as_str()).collect();
+    let mut rb: Vec<&str> = b.iter().map(|d| d.root.as_str()).collect();
+    ra.sort_unstable();
+    rb.sort_unstable();
+    ra != rb
+}
+
 /// Linux'ta bağlı blok aygıtlarını `/proc/mounts` ve `lsblk` çıktısından
 /// algılar. Windows'ta sürücü harfleri taranır.
 ///
@@ -737,5 +809,41 @@ mod tests {
         let (files, total) = scan_source(&src).unwrap();
         assert_eq!(files.len(), 2);
         assert_eq!(total, 300);
+    }
+
+    #[test]
+    fn device_watcher_delivers_initial_snapshot() {
+        // İzleyici başlatıldığında ilk aygıt listesini iletmeli.
+        let w = DeviceWatcher::start();
+        let mut got = None;
+        for _ in 0..40 {
+            if let Some(v) = w.poll() {
+                got = Some(v);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(got.is_some(), "izleyici ilk aygıt listesini iletmeli");
+    }
+
+    #[test]
+    fn device_set_change_detection() {
+        let mk = |root: &str| DetectedDevice {
+            id: DeviceId::new(),
+            kind: DeviceKind::Usb,
+            root: root.into(),
+            manufacturer: None,
+            model: None,
+            capacity_bytes: None,
+            serial_number: None,
+            filesystem: None,
+            disk_info: None,
+            removable: true,
+            is_system_disk: false,
+        };
+        assert!(!device_set_changed(&[], &[]));
+        assert!(device_set_changed(&[], &[mk("/media/a")]));
+        assert!(!device_set_changed(&[mk("/media/a")], &[mk("/media/a")]));
+        assert!(device_set_changed(&[mk("/media/a")], &[mk("/media/b")]));
     }
 }

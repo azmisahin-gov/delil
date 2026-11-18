@@ -559,6 +559,31 @@ fn draw_waveform(ui: &mut egui::Ui, wf: &delil_audio::Waveform, position: f64) {
 /// Sonuç ekranı (şartname 14.5).
 fn draw_result(app: &mut DelilApp, ui: &mut egui::Ui) {
     ui.heading("Sonuç");
+
+    // Transkripsiyon durumu: model yoksa veya iş başarısızsa AÇIK uyarı.
+    if let Some(status) = &app.transcription_status {
+        ui.add_space(6.0);
+        if status.is_satisfactory() {
+            ui.colored_label(egui::Color32::from_rgb(0, 140, 0), status.label_tr());
+        } else {
+            egui::Frame::none()
+                .fill(egui::Color32::from_rgb(60, 20, 20))
+                .inner_margin(8.0)
+                .show(ui, |ui| {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 120, 120),
+                        "⚠ DİKKAT: İnceleme tamamlanmadı",
+                    );
+                    ui.colored_label(egui::Color32::from_rgb(255, 180, 180), status.label_tr());
+                    ui.label(
+                        "Ses kayıtları metne dönüştürülemediği için rapor transkript içermiyor. \
+                         Bu bir tamamlanmış bilirkişi incelemesi değildir. \
+                         Model bileşenlerinin kurulu olduğundan emin olun.",
+                    );
+                });
+        }
+    }
+
     ui.add_space(8.0);
     ui.group(|ui| {
         ui.heading("Üretilen dosyalar");

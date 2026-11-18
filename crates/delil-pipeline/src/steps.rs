@@ -65,6 +65,54 @@ pub struct PipelineResult {
     pub validation: delil_udf::ValidationReport,
     /// Kullanıcı kararı bekleyen istisnalar.
     pub exceptions: Vec<PendingException>,
+    /// Transkripsiyon durumu. Model yoksa veya iş başarısızsa `Unavailable`/
+    /// `Failed` olur ve rapor **tamamlanmış sayılmaz**.
+    pub transcription: TranscriptionOutcome,
+}
+
+/// Transkripsiyonun bu çalıştırmadaki gerçek durumu.
+///
+/// Bu alan, "model yoktu ama rapor üretildi" durumunun sessizce başarı gibi
+/// gösterilmesini engeller. Kullanıcı arayüzü ve rapor bu durumu açıkça
+/// göstermek zorundadır.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TranscriptionOutcome {
+    /// Transkripsiyon istenmedi (kullanıcı kapatmış veya ses yok).
+    NotRequested,
+    /// Tüm sesler başarıyla metne dönüştürüldü.
+    Completed { transcribed: usize, total: usize },
+    /// Motor/model yok; hiçbir ses metne dönüştürülemedi.
+    Unavailable { reason: String },
+    /// Motor vardı ancak bazı/tüm işler başarısız oldu.
+    Failed { failed: usize, total: usize },
+}
+
+impl TranscriptionOutcome {
+    /// Rapor, transkripsiyon açısından tamamlanmış sayılabilir mi?
+    ///
+    /// Yalnızca istenmediyse veya tüm sesler başarıyla çözüldüyse `true`.
+    pub fn is_satisfactory(&self) -> bool {
+        matches!(
+            self,
+            TranscriptionOutcome::NotRequested | TranscriptionOutcome::Completed { .. }
+        )
+    }
+
+    /// Kullanıcıya gösterilecek açıklama.
+    pub fn label_tr(&self) -> String {
+        match self {
+            TranscriptionOutcome::NotRequested => "Transkripsiyon istenmedi.".into(),
+            TranscriptionOutcome::Completed { transcribed, total } => {
+                format!("{transcribed}/{total} ses başarıyla metne dönüştürüldü.")
+            }
+            TranscriptionOutcome::Unavailable { reason } => {
+                format!("Transkripsiyon yapılamadı: {reason}")
+            }
+            TranscriptionOutcome::Failed { failed, total } => {
+                format!("{total} sesin {failed} tanesi metne dönüştürülemedi.")
+            }
+        }
+    }
 }
 
 /// Olay geri çağrısı.
@@ -256,25 +304,68 @@ impl<'a> PipelineRunner<'a> {
         self.check_cancel()?;
 
         // 13-15. Transkripsiyon ve kalite kontrolü.
-        if self.config.transcribe && !case.audio_assets.is_empty() {
-            self.emit(
-                PipelineStep::Transcribing,
-                StepState::Running { progress: 0.0 },
-                "Transkripsiyon yapılıyor",
-            );
-            self.run_transcription(&mut case, &store, &materials_root)?;
-            self.emit(
-                PipelineStep::Transcribing,
-                StepState::Done,
-                format!("{} transkript üretildi", case.transcripts.len()),
-            );
-        } else {
-            self.emit(
-                PipelineStep::Transcribing,
-                StepState::Done,
-                "Transkripsiyon atlandı",
-            );
-        }
+        let transcription_outcome: TranscriptionOutcome =
+            if self.config.transcribe && !case.audio_assets.is_empty() {
+                self.emit(
+                    PipelineStep::Transcribing,
+                    StepState::Running { progress: 0.0 },
+                    "Transkripsiyon yapılıyor",
+                );
+                let outcome = self.run_transcription(&mut case, &store, &materials_root)?;
+                match &outcome {
+                    TranscriptionOutcome::Completed { transcribed, total } => {
+                        self.emit(
+                            PipelineStep::Transcribing,
+                            StepState::Done,
+                            format!("{transcribed}/{total} ses metne dönüştürüldü"),
+                        );
+                    }
+                    TranscriptionOutcome::Unavailable { reason } => {
+                        // Model yok: bu bir başarı değildir. Kullanıcıya açıkça
+                        // bildirilir ve istisna kaydı oluşturulur.
+                        self.emit(
+                            PipelineStep::Transcribing,
+                            StepState::Failed {
+                                message: reason.clone(),
+                            },
+                            format!("Transkripsiyon yapılamadı: {reason}"),
+                        );
+                        case.exceptions.push(PendingException {
+                            kind: delil_core::ExceptionKind::SuspiciousModelOutput,
+                            description: format!(
+                            "Ses kayıtları metne dönüştürülemedi: {reason}. \
+                             Rapor transkript içermemektedir; bu bir tamamlanmış inceleme değildir."
+                        ),
+                            related: None,
+                            decision: None,
+                            resolved: false,
+                        });
+                        case.add_audit(
+                            "sistem",
+                            "transkripsiyon-başarısız",
+                            format!("Transkripsiyon yapılamadı: {reason}"),
+                        );
+                    }
+                    TranscriptionOutcome::Failed { failed, total } => {
+                        self.emit(
+                            PipelineStep::Transcribing,
+                            StepState::Failed {
+                                message: format!("{failed}/{total} ses işlenemedi"),
+                            },
+                            format!("{total} sesin {failed} tanesi metne dönüştürülemedi"),
+                        );
+                    }
+                    TranscriptionOutcome::NotRequested => {}
+                }
+                outcome
+            } else {
+                self.emit(
+                    PipelineStep::Transcribing,
+                    StepState::Done,
+                    "Transkripsiyon istenmedi",
+                );
+                TranscriptionOutcome::NotRequested
+            };
         self.check_cancel()?;
 
         // 16-17. Kalite kontrolü.
@@ -369,16 +460,17 @@ impl<'a> PipelineRunner<'a> {
             pdf_path: Some(artifacts.pdf_path),
             validation,
             exceptions: Vec::new(),
+            transcription: transcription_outcome,
         })
     }
 
-    /// Transkripsiyon kuyruğunu çalıştırır.
+    /// Transkripsiyon kuyruğunu çalıştırır ve gerçek durumu döndürür.
     fn run_transcription(
         &mut self,
         case: &mut Case,
         store: &delil_case_store::CaseStore,
         materials_root: &Path,
-    ) -> Result<()> {
+    ) -> Result<TranscriptionOutcome> {
         // Kuyruk kalıcılığı: kesintiden devam için queue.json.
         let queue_path = store.root.join("logs").join("queue.json");
         let mut queue = Queue::with_persistence(&queue_path)?;
@@ -404,22 +496,38 @@ impl<'a> PipelineRunner<'a> {
 
         // Motor: çağıran tarafından verildiyse onu kullan; yoksa model
         // dizininden gerçek Candle Whisper motorunu yüklemeyi dene. Model
-        // yoksa açık hata verilir; transkripsiyon simüle edilmez.
+        // yoksa **transkripsiyon yapılamaz**; bu durum açıkça bildirilir ve
+        // rapor tamamlanmış sayılmaz. Simülasyon yapılmaz.
         let decode = |p: &Path| -> delil_transcription::Result<Vec<f32>> {
             delil_transcription::decode_audio_file(p)
         };
 
         let mut owned_engine: Option<Box<dyn TranscriptionEngine>> = self.engine.take();
+        let mut load_error: Option<String> = None;
         if owned_engine.is_none() {
-            if let Some(dir) = self.model_dir.clone() {
-                owned_engine = load_candle_engine(&dir)
-                    .ok()
-                    .map(|e| e as Box<dyn TranscriptionEngine>);
+            match self.model_dir.clone() {
+                Some(dir) => match load_candle_engine(&dir) {
+                    Ok(e) => owned_engine = Some(e),
+                    Err(e) => load_error = Some(e.to_string()),
+                },
+                None => {
+                    load_error = Some(
+                        "Whisper model dizini yapılandırılmamış (DELIL_MODEL_DIR veya kurulum models/ dizini)."
+                            .into(),
+                    );
+                }
             }
         }
+
+        let queued_total = queue.items().len();
         let mut engine: Box<dyn TranscriptionEngine> = match owned_engine {
             Some(e) => e,
-            None => Box::new(PlaceholderEngine::new()),
+            None => {
+                // Motor yok: hiçbir iş çalıştırılmaz, kuyruk işaretlenmez.
+                let reason =
+                    load_error.unwrap_or_else(|| "Yerel Whisper modeli yüklenemedi.".to_string());
+                return Ok(TranscriptionOutcome::Unavailable { reason });
+            }
         };
 
         let outcomes = queue.run_all(
@@ -429,6 +537,8 @@ impl<'a> PipelineRunner<'a> {
             &decode,
         );
 
+        let mut transcribed = 0usize;
+        let mut failed = 0usize;
         for (item, outcome) in queue.items().iter().zip(outcomes.iter()) {
             match outcome {
                 QueueOutcome::Done(r) => {
@@ -458,8 +568,10 @@ impl<'a> PipelineRunner<'a> {
                     );
                     t.id = delil_core::TranscriptId::new();
                     case.transcripts.push(t);
+                    transcribed += 1;
                 }
                 QueueOutcome::Failed(msg) => {
+                    failed += 1;
                     case.exceptions.push(PendingException {
                         kind: delil_core::ExceptionKind::CorruptAudio,
                         description: format!("Bir ses dosyası işlenemedi: {msg}"),
@@ -474,9 +586,20 @@ impl<'a> PipelineRunner<'a> {
         case.add_audit(
             "sistem",
             "transkripsiyon",
-            format!("{} transkript üretildi", case.transcripts.len()),
+            format!("{transcribed}/{queued_total} ses metne dönüştürüldü, {failed} başarısız"),
         );
-        Ok(())
+
+        if failed > 0 {
+            Ok(TranscriptionOutcome::Failed {
+                failed,
+                total: queued_total,
+            })
+        } else {
+            Ok(TranscriptionOutcome::Completed {
+                transcribed,
+                total: queued_total,
+            })
+        }
     }
 
     /// Kalite kontrolünü çalıştırır ve bayrakları işler.
@@ -802,47 +925,6 @@ fn load_candle_engine(_dir: &Path) -> Result<Box<dyn TranscriptionEngine>> {
     ))
 }
 
-/// Gerçek model yüklenmeden kullanılan yer tutucu motor.
-///
-/// Bu motor **simülasyon yapmaz**: transkripsiyon üretemez ve bunu açıkça
-/// bildirir. Gerçek kullanımda `candle_whisper::CandleWhisper` kullanılır.
-pub struct PlaceholderEngine;
-
-impl PlaceholderEngine {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for PlaceholderEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TranscriptionEngine for PlaceholderEngine {
-    fn name(&self) -> &str {
-        "placeholder"
-    }
-    fn version(&self) -> &str {
-        "yok"
-    }
-    fn is_ready(&self) -> bool {
-        false
-    }
-    fn transcribe(
-        &mut self,
-        _samples: &[f32],
-        _options: &TranscriptionOptions,
-        _control: &ControlFlag,
-        _progress: Option<delil_transcription::engine::EngineProgress<'_>>,
-    ) -> delil_transcription::Result<delil_transcription::engine::TranscriptionResult> {
-        Err(delil_transcription::TranscriptionError::ModelMissing(
-            "Yerel Whisper modeli yüklenmedi. Kurulum paketindeki model dizini gerekli.".into(),
-        ))
-    }
-}
-
 /// Tam iş akışını çalıştırır (kısayol).
 pub fn run_full_pipeline(mut config: PipelineConfig) -> Result<PipelineResult> {
     let mut runner = PipelineRunner::new(std::mem::replace(&mut config, PipelineConfig::new(".")));
@@ -996,16 +1078,45 @@ mod tests {
     }
 
     #[test]
-    fn placeholder_engine_does_not_fake_transcription() {
-        let mut e = PlaceholderEngine::new();
-        assert!(!e.is_ready());
-        let r = e.transcribe(
-            &[0.0f32; 16000],
-            &TranscriptionOptions::default(),
-            &ControlFlag::new(),
-            None,
+    fn missing_model_reports_unavailable_and_not_complete() {
+        // Model yokken transkripsiyon istenirse: sonuç "Unavailable" olmalı,
+        // hiç transkript üretilmemeli ve sonuç tatmin edici SAYILMAMALI.
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        write_wav(&src.join("a.wav"), 0.5);
+
+        let mut cfg = PipelineConfig::new(dir.path().join("case"));
+        cfg.material_source = Some(src.clone());
+        cfg.source = Some(delil_evidence::local_folder_source(&src));
+        cfg.transcribe = true; // transkripsiyon istendi
+                               // Model dizini yok.
+
+        let mut runner = PipelineRunner::new(cfg);
+        let res = runner.run().unwrap();
+        assert!(
+            matches!(res.transcription, TranscriptionOutcome::Unavailable { .. }),
+            "model yokken Unavailable beklenir, bulunan: {:?}",
+            res.transcription
         );
-        assert!(r.is_err());
+        assert!(!res.transcription.is_satisfactory());
+        assert_eq!(res.case.transcripts.len(), 0, "hiç transkript üretilmemeli");
+        // İstisna kaydı oluşmalı ve raporda eksik olarak görünmeli.
+        assert!(res
+            .case
+            .exceptions
+            .iter()
+            .any(|e| e.description.contains("metne dönüştürülemedi")));
+    }
+
+    #[test]
+    fn transcription_not_requested_is_satisfactory() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cfg = PipelineConfig::new(dir.path().join("case"));
+        cfg.transcribe = false;
+        let res = run_full_pipeline(cfg).unwrap();
+        assert_eq!(res.transcription, TranscriptionOutcome::NotRequested);
+        assert!(res.transcription.is_satisfactory());
     }
 
     #[test]

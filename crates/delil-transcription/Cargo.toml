@@ -32,6 +32,10 @@ optional = true
 default = []
 candle = ["dep:candle", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
 decode = ["dep:delil-audio", "delil-audio/decode"]
+# GPU hızlandırma (isteğe bağlı). CPU her zaman desteklidir; GPU yoksa işlem
+# otomatik olarak CPU'ya düşer.
+cuda = ["candle/cuda"]
+metal = ["candle/metal"]
 full = ["candle", "decode"]
 
 [dev-dependencies]

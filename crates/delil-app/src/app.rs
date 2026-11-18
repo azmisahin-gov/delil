@@ -26,6 +26,8 @@ pub struct DelilApp {
     pub expert_registry: String,
     /// Algılanan aygıtlar.
     pub devices: Vec<delil_evidence::DetectedDevice>,
+    /// Aygıt değişiklik izleyicisi (USB/SD otomatik algılama).
+    pub watcher: Option<delil_evidence::DeviceWatcher>,
     /// Teknik log (ayrıntı paneli).
     pub log: Vec<String>,
     /// Ayrıntı paneli açık mı?
@@ -40,6 +42,8 @@ pub struct DelilApp {
     pub udf_path: Option<PathBuf>,
     /// Doğrulama özeti.
     pub validation_summary: String,
+    /// Transkripsiyonun gerçek durumu (model yoksa açıkça gösterilir).
+    pub transcription_status: Option<delil_pipeline::TranscriptionOutcome>,
     /// Hata mesajı.
     pub error: Option<String>,
     /// Son oluşturulan raporlar (basit liste).
@@ -72,6 +76,7 @@ impl DelilApp {
             expert_title: String::new(),
             expert_registry: String::new(),
             devices,
+            watcher: Some(delil_evidence::DeviceWatcher::start()),
             log: vec!["DELİL başlatıldı.".to_string()],
             show_logs: false,
             rx: None,
@@ -79,6 +84,7 @@ impl DelilApp {
             case: None,
             udf_path: None,
             validation_summary: String::new(),
+            transcription_status: None,
             error: None,
             recent_reports: Vec::new(),
             selected_transcript: 0,
@@ -228,6 +234,18 @@ impl DelilApp {
 
     /// Olayları işler.
     pub fn poll_events(&mut self) {
+        // USB/SD/harici disk takılıp çıkarıldığında otomatik güncelle.
+        if let Some(w) = &self.watcher {
+            if let Some(devices) = w.poll() {
+                if devices.len() != self.devices.len() {
+                    self.log(format!(
+                        "Aygıt değişikliği algılandı: {} aygıt.",
+                        devices.len()
+                    ));
+                }
+                self.devices = devices;
+            }
+        }
         let mut events = Vec::new();
         if let Some(rx) = &self.rx {
             while let Ok(e) = rx.try_recv() {
@@ -249,6 +267,7 @@ impl DelilApp {
             match r {
                 Ok(res) => {
                     self.validation_summary = res.validation.summary_tr();
+                    self.transcription_status = Some(res.transcription.clone());
                     self.udf_path = Some(res.udf_path.clone());
                     self.recent_reports.push(format!(
                         "{} — {}",
@@ -335,9 +354,13 @@ fn non_empty(s: &str) -> Option<String> {
 impl eframe::App for DelilApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.poll_events();
-        if self.screen == Screen::Processing {
-            ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        }
+        // Aygıt izleyicisi ve ilerleme için düzenli yeniden çizim.
+        let interval = if self.screen == Screen::Processing {
+            std::time::Duration::from_millis(200)
+        } else {
+            std::time::Duration::from_millis(1000)
+        };
+        ctx.request_repaint_after(interval);
         crate::screens::draw(self, ctx);
     }
 }

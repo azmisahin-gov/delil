@@ -565,6 +565,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bindgen_cuda"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "282be55fb326843bb67cccceeeaf21c961ef303f60018f9a2ab69494dad8eaf9"
+dependencies = [
+ "glob",
+ "num_cpus",
+ "rayon",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -798,9 +809,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ccf5ee3532e66868516d9b315f73aec9f34ea1a37ae98514534d458915dbf1"
 dependencies = [
  "byteorder",
+ "candle-kernels",
+ "candle-metal-kernels",
+ "cudarc",
  "gemm 0.17.1",
  "half",
  "memmap2",
+ "metal 0.27.0",
  "num-traits",
  "num_cpus",
  "rand 0.9.5",
@@ -809,8 +824,31 @@ dependencies = [
  "safetensors",
  "thiserror 1.0.69",
  "ug",
+ "ug-cuda",
+ "ug-metal",
  "yoke 0.7.5",
  "zip 1.3.1",
+]
+
+[[package]]
+name = "candle-kernels"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a10885bd902fad1b8518ba2b22369aaed88a3d94e123533ad3ca73db33b1c8ca"
+dependencies = [
+ "bindgen_cuda",
+]
+
+[[package]]
+name = "candle-metal-kernels"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52c85c21827c28db94e7112e364abe7e0cf8d2b022c014edf08642be6b94f21e"
+dependencies = [
+ "metal 0.27.0",
+ "once_cell",
+ "thiserror 1.0.69",
+ "tracing",
 ]
 
 [[package]]
@@ -1291,6 +1329,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher",
+]
+
+[[package]]
+name = "cudarc"
+version = "0.13.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "486c221362668c63a1636cfa51463b09574433b39029326cff40864b3ba12b6e"
+dependencies = [
+ "half",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -3452,9 +3500,39 @@ dependencies = [
 
 [[package]]
 name = "metal"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c43f73953f8cbe511f021b58f18c3ce1c3d1ae13fe953293e13345bf83217f25"
+dependencies = [
+ "bitflags 2.13.2",
+ "block",
+ "core-graphics-types",
+ "foreign-types",
+ "log",
+ "objc",
+ "paste",
+]
+
+[[package]]
+name = "metal"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5637e166ea14be6063a3f8ba5ccb9a4159df7d8f6d61c02fc3d480b1f90dcfcb"
+dependencies = [
+ "bitflags 2.13.2",
+ "block",
+ "core-graphics-types",
+ "foreign-types",
+ "log",
+ "objc",
+ "paste",
+]
+
+[[package]]
+name = "metal"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ecfd3296f8c56b7c1f6fbac3c71cefa9d78ce009850c45000015f206dc7fa21"
 dependencies = [
  "bitflags 2.13.2",
  "block",
@@ -3798,6 +3876,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "915b1b472bc21c53464d6c8461c9d3af805ba1ef837e1cac254428f4a77177b1"
 dependencies = [
  "malloc_buf",
+ "objc_exception",
 ]
 
 [[package]]
@@ -3991,6 +4070,15 @@ dependencies = [
  "objc2 0.5.3",
  "objc2-foundation 0.2.2",
  "objc2-metal",
+]
+
+[[package]]
+name = "objc_exception"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad970fb455818ad6cba4c122ad012fae53ae8b4795f86378bce65e4f6bab2ca4"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -5937,6 +6025,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "ug-cuda"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50758486d7941f8b0a636ba7e29455c07071f41590beac1fd307ec893e8db69a"
+dependencies = [
+ "cudarc",
+ "half",
+ "serde",
+ "thiserror 1.0.69",
+ "ug",
+]
+
+[[package]]
+name = "ug-metal"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a02ddc17bf32f7dcaaf016b6735f7198082b82f122df7b3ca15d8ead5911ccef"
+dependencies = [
+ "half",
+ "metal 0.29.0",
+ "objc",
+ "serde",
+ "thiserror 1.0.69",
+ "ug",
+]
+
+[[package]]
 name = "unicode-bidi"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6448,7 +6563,7 @@ dependencies = [
  "libc",
  "libloading 0.8.9",
  "log",
- "metal",
+ "metal 0.28.0",
  "naga",
  "ndk-sys",
  "objc",

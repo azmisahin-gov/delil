@@ -13,7 +13,10 @@
 
 pub mod steps;
 
-pub use steps::{run_full_pipeline, PipelineConfig, PipelineEvent, PipelineResult, PipelineRunner};
+pub use steps::{
+    run_full_pipeline, PipelineConfig, PipelineEvent, PipelineResult, PipelineRunner,
+    TranscriptionOutcome,
+};
 
 use thiserror::Error;
 

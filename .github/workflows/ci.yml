@@ -12,7 +12,7 @@ env:
 
 jobs:
   test-linux:
-    name: Test (Linux, varsayılan özellikler)
+    name: Linux birim testleri
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
         run: cargo test --workspace --no-fail-fast
 
   test-features:
-    name: Test (ağır özellikler: candle + decode + ocr)
+    name: Ağır özellik derlemesi (candle + decode + ocr)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,24 +53,14 @@ jobs:
       - name: OCR bileşeni derleme
         run: cargo build -p delil-assignment --features ocr
 
-  build-windows:
-    name: Derleme (Windows 11 x64)
+  test-windows:
+    name: Windows 11 x64 testleri
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
-      - name: Derle (arayüz + CLI)
-        run: |
-          cargo build --release --target x86_64-pc-windows-msvc -p delil-app -p delil-cli
-      - name: Testler (Windows)
+      - name: Testler
         run: cargo test --workspace --no-fail-fast
-      - name: Yürütülebilir dosyaları yükle
-        uses: actions/upload-artifact@v4
-        with:
-          name: delil-windows-x64
-          path: |
-            target/x86_64-pc-windows-msvc/release/delil-app.exe
-            target/x86_64-pc-windows-msvc/release/delil.exe
+      - name: Üretim özellikleriyle derleme
+        run: cargo build --release -p delil-app --features production
