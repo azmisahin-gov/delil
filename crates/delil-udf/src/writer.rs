@@ -264,7 +264,11 @@ fn table_to_xml(t: &Table, cell_spans: &CellSpans) -> String {
         .map(|w| fmt_num(*w))
         .collect::<Vec<_>>()
         .join(",");
-    let border = if t.bordered { "borderCell" } else { "borderNone" };
+    let border = if t.bordered {
+        "borderCell"
+    } else {
+        "borderNone"
+    };
     let name = t.name.clone().unwrap_or_else(|| "Sabit".to_string());
     let mut rows_xml = String::new();
     for (ri, row) in t.rows.iter().enumerate() {
@@ -279,7 +283,10 @@ fn table_to_xml(t: &Table, cell_spans: &CellSpans) -> String {
             if cell.fill_color != crate::color::WHITE {
                 cattr.push_str(&format!(" fillColor=\"{}\"", cell.fill_color));
             }
-            cattr.push_str(&format!(" border=\"{}\" borderSpec=\"{}\"", border, cell.border_spec));
+            cattr.push_str(&format!(
+                " border=\"{}\" borderSpec=\"{}\"",
+                border, cell.border_spec
+            ));
             cells_xml.push_str(&format!("<cell {}>{}</cell>", cattr, paras_xml));
         }
         let height = row.height_pt.unwrap_or(0.0);
@@ -441,8 +448,8 @@ pub fn write_udf_bytes(content_xml: &[u8], path: &Path) -> Result<()> {
     }
     let file = std::fs::File::create(path)?;
     let mut zip = zip::ZipWriter::new(file);
-    let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let options: zip::write::FileOptions<'_, ()> =
+        zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
     zip.start_file("content.xml", options)?;
     zip.write_all(content_xml)?;
     zip.finish()?;
@@ -455,8 +462,8 @@ pub fn document_to_udf_bytes(doc: &UdfDocument) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
     {
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
-        let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options: zip::write::FileOptions<'_, ()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         zip.start_file("content.xml", options)?;
         zip.write_all(xml.as_bytes())?;
         zip.finish()?;

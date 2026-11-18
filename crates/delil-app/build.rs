@@ -7,7 +7,10 @@ fn main() {
     {
         let mut res = winresource::WindowsResource::new();
         res.set("ProductName", "DELİL");
-        res.set("FileDescription", "DELİL — Otomatik Ses Çözümleme ve UDF Raporlama");
+        res.set(
+            "FileDescription",
+            "DELİL — Otomatik Ses Çözümleme ve UDF Raporlama",
+        );
         res.set("CompanyName", "DELİL");
         res.set("LegalCopyright", "MIT Lisansı");
         res.set("ProductVersion", env!("CARGO_PKG_VERSION"));

@@ -1381,6 +1381,7 @@ name = "delil-app"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "delil-assignment",
  "delil-audio",
  "delil-case-store",
  "delil-core",

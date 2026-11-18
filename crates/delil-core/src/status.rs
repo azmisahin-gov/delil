@@ -53,11 +53,17 @@ impl PipelineStep {
 #[serde(rename_all = "snake_case", tag = "state", content = "detail")]
 pub enum StepState {
     Pending,
-    Running { progress: f32 },
+    Running {
+        progress: f32,
+    },
     Done,
-    Failed { message: String },
+    Failed {
+        message: String,
+    },
     /// Kullanıcı kararı gerektiren istisna.
-    NeedsDecision { message: String },
+    NeedsDecision {
+        message: String,
+    },
 }
 
 /// Edinim/doğrulama durumu.
@@ -370,7 +376,10 @@ mod tests {
 
     #[test]
     fn transcript_status_ordinals_are_ordered() {
-        assert!(TranscriptStatus::MachineGenerated.ordinal() < TranscriptStatus::ExpertApproved.ordinal());
+        assert!(
+            TranscriptStatus::MachineGenerated.ordinal()
+                < TranscriptStatus::ExpertApproved.ordinal()
+        );
         assert_eq!(TranscriptStatus::ExpertApproved.ordinal(), 5);
     }
 

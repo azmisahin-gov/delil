@@ -172,8 +172,7 @@ impl CandleWhisper {
         let logits = self.decoder_final_linear(&ys.i(..1)?)?.i(0)?.i(0)?;
         let logits = logits.index_select(&language_token_ids, 0)?;
         let probs = softmax(&logits, D::Minus1)?.to_vec1::<f32>()?;
-        let mut pairs: Vec<(&str, f32)> =
-            LANGUAGES.iter().map(|(t, _)| *t).zip(probs).collect();
+        let mut pairs: Vec<(&str, f32)> = LANGUAGES.iter().map(|(t, _)| *t).zip(probs).collect();
         pairs.sort_by(|a, b| b.1.total_cmp(&a.1));
         Ok(pairs[0].0.to_string())
     }
@@ -288,7 +287,11 @@ impl TranscriptionEngine for CandleWhisper {
         }
         let mel = Tensor::from_vec(
             mel,
-            (1, self.config.num_mel_bins, mel_len / self.config.num_mel_bins),
+            (
+                1,
+                self.config.num_mel_bins,
+                mel_len / self.config.num_mel_bins,
+            ),
             &self.device,
         )
         .map_err(|e| TranscriptionError::Inference(e.to_string()))?;
@@ -296,8 +299,9 @@ impl TranscriptionEngine for CandleWhisper {
         // Dil token'ı.
         let language_token = match &options.language {
             Some(lang) => {
-                let tok = token_id(&self.tokenizer, &format!("<|{lang}|>"))
-                    .map_err(|_| TranscriptionError::Inference(format!("dil desteklenmiyor: {lang}")))?;
+                let tok = token_id(&self.tokenizer, &format!("<|{lang}|>")).map_err(|_| {
+                    TranscriptionError::Inference(format!("dil desteklenmiyor: {lang}"))
+                })?;
                 Some(tok)
             }
             None => {
@@ -326,8 +330,7 @@ impl TranscriptionEngine for CandleWhisper {
             let mel_segment = mel
                 .narrow(2, seek, segment_size)
                 .map_err(|e| TranscriptionError::Inference(e.to_string()))?;
-            let segment_duration =
-                (segment_size * m::HOP_LENGTH) as f64 / m::SAMPLE_RATE as f64;
+            let segment_duration = (segment_size * m::HOP_LENGTH) as f64 / m::SAMPLE_RATE as f64;
 
             let (_tokens, text) = self
                 .decode_chunk(&mel_segment, language_token, options.timestamps)

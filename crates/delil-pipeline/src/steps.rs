@@ -126,9 +126,10 @@ impl<'a> PipelineRunner<'a> {
                 Ok(a) => {
                     case.assignment = a;
                     // Görevlendirme belgesini vaka deposuna kopyala.
-                    let dest = store.root.join("assignment").join(
-                        path.file_name().unwrap_or_default(),
-                    );
+                    let dest = store
+                        .root
+                        .join("assignment")
+                        .join(path.file_name().unwrap_or_default());
                     let _ = std::fs::copy(&path, &dest);
                     case.add_audit("sistem", "görevlendirme", "Görevlendirme belgesi okundu");
                     if case.assignment.case_number.is_none() {
@@ -169,9 +170,10 @@ impl<'a> PipelineRunner<'a> {
         );
         let materials_root = store.root.join("materials");
         std::fs::create_dir_all(&materials_root)?;
-        if let (Some(src), Some(source)) =
-            (self.config.material_source.clone(), self.config.source.clone())
-        {
+        if let (Some(src), Some(source)) = (
+            self.config.material_source.clone(),
+            self.config.source.clone(),
+        ) {
             if !case.sources.iter().any(|s| s.id == source.id) {
                 case.sources.push(source.clone());
             }
@@ -408,7 +410,9 @@ impl<'a> PipelineRunner<'a> {
         let mut owned_engine: Option<Box<dyn TranscriptionEngine>> = self.engine.take();
         if owned_engine.is_none() {
             if let Some(dir) = self.model_dir.clone() {
-                owned_engine = load_candle_engine(&dir).ok().map(|e| e as Box<dyn TranscriptionEngine>);
+                owned_engine = load_candle_engine(&dir)
+                    .ok()
+                    .map(|e| e as Box<dyn TranscriptionEngine>);
             }
         }
         let mut engine: Box<dyn TranscriptionEngine> = match owned_engine {
@@ -477,9 +481,8 @@ impl<'a> PipelineRunner<'a> {
     fn run_quality_control(&mut self, case: &mut Case, materials_root: &Path) {
         for t in case.transcripts.iter_mut() {
             let asset = case.audio_assets.iter().find(|a| a.id == t.audio_asset_id);
-            let material = asset.and_then(|a| {
-                case.materials.iter().find(|m| m.id == a.material_id)
-            });
+            let material =
+                asset.and_then(|a| case.materials.iter().find(|m| m.id == a.material_id));
             let samples = material
                 .map(|m| materials_root.join(&m.stored_relative_path))
                 .and_then(|p| delil_transcription::decode_audio_file(&p).ok())
@@ -521,7 +524,9 @@ pub mod delil_report_to_udf {
         let para = |s: &str| Paragraph::text(s);
 
         // 1. Kapak
-        doc.push_paragraph(Paragraph::with_run(TextRun::new(&report.cover_title).bold().size(16.0)).centered());
+        doc.push_paragraph(
+            Paragraph::with_run(TextRun::new(&report.cover_title).bold().size(16.0)).centered(),
+        );
         if let Some(sub) = &report.cover_subtitle {
             doc.push_paragraph(para(sub).centered());
         }
@@ -552,7 +557,11 @@ pub mod delil_report_to_udf {
         doc.push_paragraph(bold12("BİLİRKİŞİ BİLGİLERİ"));
         doc.push_paragraph(para(&format!(
             "Adı Soyadı: {}",
-            report.expert.full_name.as_deref().unwrap_or("(belirtilmemiş)")
+            report
+                .expert
+                .full_name
+                .as_deref()
+                .unwrap_or("(belirtilmemiş)")
         )));
         doc.push_paragraph(para(&format!(
             "Unvanı: {}",
@@ -560,7 +569,11 @@ pub mod delil_report_to_udf {
         )));
         doc.push_paragraph(para(&format!(
             "Sicil No: {}",
-            report.expert.registry_number.as_deref().unwrap_or("(belirtilmemiş)")
+            report
+                .expert
+                .registry_number
+                .as_deref()
+                .unwrap_or("(belirtilmemiş)")
         )));
 
         // 6. Görevlendirme tarihi ve süresi
@@ -646,7 +659,10 @@ pub mod delil_report_to_udf {
                     TableCell::text(&a.technical.codec),
                     TableCell::text(format!("{:.1}", a.technical.duration_seconds)),
                     TableCell::text(
-                        a.technical.channels.map(|c| c.to_string()).unwrap_or_default(),
+                        a.technical
+                            .channels
+                            .map(|c| c.to_string())
+                            .unwrap_or_default(),
                     ),
                 ]));
             }
@@ -654,7 +670,9 @@ pub mod delil_report_to_udf {
         }
 
         // 15-16. Transkript içeriği ve zaman kodları
-        doc.push_paragraph(bold12("SES KAYITLARININ METİN HÂLİNE DÖNÜŞTÜRÜLMÜŞ İÇERİĞİ"));
+        doc.push_paragraph(bold12(
+            "SES KAYITLARININ METİN HÂLİNE DÖNÜŞTÜRÜLMÜŞ İÇERİĞİ",
+        ));
         for t in &report.transcripts {
             let name = report
                 .audio_inventory
@@ -665,7 +683,10 @@ pub mod delil_report_to_udf {
             doc.push_paragraph(Paragraph::with_run(TextRun::new(&name).italic()));
             for s in &t.current().segments {
                 let line = if report.include_timestamps {
-                    format!("[{:.1}s – {:.1}s] {}", s.start_seconds, s.end_seconds, s.text)
+                    format!(
+                        "[{:.1}s – {:.1}s] {}",
+                        s.start_seconds, s.end_seconds, s.text
+                    )
                 } else {
                     s.text.clone()
                 };
@@ -763,9 +784,7 @@ pub mod delil_report_to_udf {
 /// Özellik kapalıysa veya model dosyaları eksikse hata döner; çağıran taraf
 /// yer tutucu motora düşer ve bu durum kullanıcıya açıkça bildirilir.
 #[cfg(feature = "candle")]
-fn load_candle_engine(
-    dir: &Path,
-) -> Result<Box<dyn TranscriptionEngine>> {
+fn load_candle_engine(dir: &Path) -> Result<Box<dyn TranscriptionEngine>> {
     use delil_transcription::candle_whisper::{CandleWhisper, WhisperEngineConfig};
     let cfg = WhisperEngineConfig::new(dir);
     let engine = CandleWhisper::load(&cfg).map_err(|e| PipelineError::Transcription(e))?;
@@ -817,8 +836,7 @@ impl TranscriptionEngine for PlaceholderEngine {
         _progress: Option<delil_transcription::engine::EngineProgress<'_>>,
     ) -> delil_transcription::Result<delil_transcription::engine::TranscriptionResult> {
         Err(delil_transcription::TranscriptionError::ModelMissing(
-            "Yerel Whisper modeli yüklenmedi. Kurulum paketindeki model dizini gerekli."
-                .into(),
+            "Yerel Whisper modeli yüklenmedi. Kurulum paketindeki model dizini gerekli.".into(),
         ))
     }
 }
@@ -894,7 +912,9 @@ mod tests {
             "TARAFLAR",
             "BİLİRKİŞİ BİLGİLERİ",
             "İNCELEME KONUSU",
-            "BİLİRKİŞİYE YÖNTELTİLEN SORULAR".replace("YÖNTELTİLEN", "YÖNELTİLEN").as_str(),
+            "BİLİRKİŞİYE YÖNTELTİLEN SORULAR"
+                .replace("YÖNTELTİLEN", "YÖNELTİLEN")
+                .as_str(),
             "İNCELENEN MATERYALLER",
             "İNCELEME YÖNTEMİ",
             "TEKNİK SES ENVANTERİ",

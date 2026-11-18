@@ -438,9 +438,7 @@ impl UdfDocument {
     }
 
     pub fn push_heading(&mut self, text: impl Into<String>) {
-        self.push_paragraph(Paragraph::with_run(
-            TextRun::new(text).bold().size(12.0),
-        ));
+        self.push_paragraph(Paragraph::with_run(TextRun::new(text).bold().size(12.0)));
     }
 
     /// Belgenin tüm düz metni (geliştirici/test kolaylığı için).

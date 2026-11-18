@@ -67,6 +67,13 @@ enum Command {
         /// UDF dosyası yolu.
         dosya: PathBuf,
     },
+    /// Bir UDF dosyasında metin arar.
+    UdfAra {
+        /// UDF dosyası yolu.
+        dosya: PathBuf,
+        /// Aranacak metin.
+        metin: String,
+    },
     /// Vaka deposunu listeler (özet).
     Vakalar {
         /// Kök dizin.
@@ -134,7 +141,9 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             let mut cb = |e: PipelineEvent| {
                 let durum = match &e.state {
                     StepState::Pending => "bekliyor".to_string(),
-                    StepState::Running { progress } => format!("çalışıyor (%{:.0})", progress * 100.0),
+                    StepState::Running { progress } => {
+                        format!("çalışıyor (%{:.0})", progress * 100.0)
+                    }
                     StepState::Done => "tamamlandı".to_string(),
                     StepState::Failed { message } => format!("başarısız: {message}"),
                     StepState::NeedsDecision { message } => format!("karar gerekli: {message}"),
@@ -150,7 +159,11 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             if let Some(p) = &res.pdf_path {
                 println!("PDF kopyası: {}", p.display());
             }
-            println!("Materyal: {} dosya ({} doğrulandı)", res.case.materials.len(), res.case.verified_material_count());
+            println!(
+                "Materyal: {} dosya ({} doğrulandı)",
+                res.case.materials.len(),
+                res.case.verified_material_count()
+            );
             println!("Ses dosyası: {}", res.case.audio_assets.len());
             println!("Transkript: {}", res.case.transcripts.len());
             println!("UDF doğrulama: {}", res.validation.summary_tr());
@@ -160,7 +173,12 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                     println!("  - {}", ex.description);
                 }
             }
-            let missing = res.case.report.as_ref().map(|r| r.missing_fields.clone()).unwrap_or_default();
+            let missing = res
+                .case
+                .report
+                .as_ref()
+                .map(|r| r.missing_fields.clone())
+                .unwrap_or_default();
             if !missing.is_empty() {
                 println!("Rapor için eksik alanlar:");
                 for m in missing {
@@ -174,7 +192,10 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             if devices.is_empty() {
                 println!("Bağlı harici aygıt bulunamadı.");
             } else {
-                println!("{:<24} {:<12} {:<6} {}", "Kök", "Tür", "Sistem", "Çıkarılabilir");
+                println!(
+                    "{:<24} {:<12} {:<6} {}",
+                    "Kök", "Tür", "Sistem", "Çıkarılabilir"
+                );
                 for d in &devices {
                     println!(
                         "{:<24} {:<12} {:<6} {}",
@@ -194,7 +215,15 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Envanter { dosya } => {
             let container = delil_audio::detect_container_from_path(&dosya)?;
             match container {
-                Some(c) => println!("İçerik tabanlı algılanan biçim: {} ({})", c.label(), if c.is_video_container() { "video kapsayıcı; yalnızca ses akışı" } else { "ses" }),
+                Some(c) => println!(
+                    "İçerik tabanlı algılanan biçim: {} ({})",
+                    c.label(),
+                    if c.is_video_container() {
+                        "video kapsayıcı; yalnızca ses akışı"
+                    } else {
+                        "ses"
+                    }
+                ),
                 None => println!("İçerik ses biçimi olarak tanınamadı."),
             }
             let info = delil_audio::inventory(&dosya)?;
@@ -215,18 +244,41 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             println!("{}", doc.plain_text());
             println!("\n--- Özet ---");
             println!("Metin havuzu: {} karakter", doc.pool.chars().count());
-            println!("Blok: {}, tablo: {}, resim: {}", doc.blocks.len(), doc.table_count, doc.image_count);
+            println!(
+                "Blok: {}, tablo: {}, resim: {}",
+                doc.blocks.len(),
+                doc.table_count,
+                doc.image_count
+            );
             Ok(())
         }
         Command::UdfDogrula { dosya } => {
             let report = delil_udf::validate_udf(&dosya)?;
             for c in &report.checks {
-                println!("[{}] {} — {}", if c.passed { "OK" } else { "!!" }, c.name, c.detail);
+                println!(
+                    "[{}] {} — {}",
+                    if c.passed { "OK" } else { "!!" },
+                    c.name,
+                    c.detail
+                );
             }
             println!();
             println!("{}", report.summary_tr());
             if !report.passed() {
                 anyhow::bail!("UDF doğrulaması başarısız");
+            }
+            Ok(())
+        }
+        Command::UdfAra { dosya, metin } => {
+            let doc = delil_udf::read_udf(&dosya)?;
+            let hits = doc.search(&metin);
+            if hits.is_empty() {
+                println!("“{metin}” bulunamadı.");
+            } else {
+                println!("“{metin}” için {} eşleşme:", hits.len());
+                for h in hits {
+                    println!("  [blok {}, {}] {}", h.block_index, h.kind, h.context);
+                }
             }
             Ok(())
         }
@@ -247,14 +299,20 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             let password = read_password()?;
             let manifest = store.backup(&password, &hedef)?;
             println!("Yedek oluşturuldu: {}", hedef.display());
-            println!("{} dosya, bütünlük manifesti kaydedildi.", manifest.entries.len());
+            println!(
+                "{} dosya, bütünlük manifesti kaydedildi.",
+                manifest.entries.len()
+            );
             Ok(())
         }
         Command::GeriYukle { yedek, hedef } => {
             let password = read_password()?;
             let manifest = delil_case_store::CaseStore::restore(&yedek, &password, &hedef)?;
             println!("Geri yükleme tamamlandı: {}", hedef.display());
-            println!("{} dosya bütünlük doğrulamasından geçti.", manifest.entries.len());
+            println!(
+                "{} dosya bütünlük doğrulamasından geçti.",
+                manifest.entries.len()
+            );
             Ok(())
         }
         Command::Surum => {

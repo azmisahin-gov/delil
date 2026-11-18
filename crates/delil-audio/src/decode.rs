@@ -36,7 +36,6 @@ pub const TARGET_SAMPLE_RATE: u32 = 16_000;
 
 /// Ses dosyasını 16 kHz mono f32'ye çözer.
 pub fn decode_to_16k_mono(path: &Path) -> Result<DecodedAudio, DecodeError> {
-    use symphonia::core::audio::{AudioBufferRef, Signal};
     use symphonia::core::codecs::DecoderOptions;
     use symphonia::core::formats::FormatOptions;
     use symphonia::core::io::MediaSourceStream;
@@ -71,11 +70,7 @@ pub fn decode_to_16k_mono(path: &Path) -> Result<DecodedAudio, DecodeError> {
         .ok_or(DecodeError::NoAudioStream)?;
     let track_id = track.id;
     let src_rate = track.codec_params.sample_rate.unwrap_or(TARGET_SAMPLE_RATE);
-    let src_channels = track
-        .codec_params
-        .channels
-        .map(|c| c.count())
-        .unwrap_or(1);
+    let src_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
 
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
@@ -177,7 +172,6 @@ fn append_mono(
         symphonia::core::audio::AudioBufferRef::U32(b) => mix!(b),
         symphonia::core::audio::AudioBufferRef::S8(b) => mix!(b),
         symphonia::core::audio::AudioBufferRef::S24(b) => mix!(b),
-        _ => {}
     }
 }
 

@@ -212,7 +212,8 @@ gönderilmemiştir. Çıktı, bilirkişi incelemesine uygun birebir (verbatim) t
 pub fn default_method_text() -> String {
     "İnceleme; materyalin mantıksal dosya edinimi, bütünlük doğrulaması (SHA-256), \
 ses dosyalarının teknik envanterinin çıkarılması, yerel yapay zekâ ile transkripsiyon, \
-otomatik kalite kontrolü ve bilirkişi incelemesi aşamalarından oluşur.".to_string()
+otomatik kalite kontrolü ve bilirkişi incelemesi aşamalarından oluşur."
+        .to_string()
 }
 
 /// Yöntem sınırlılıkları (şartname 11.2/20).
@@ -222,11 +223,14 @@ pub fn default_limitations() -> Vec<String> {
 tespitine veya ses orijinalliği/montaj incelemesine yönelik bir değerlendirme içermez."
             .to_string(),
         "Konuşmacı etiketleri (ör. “Konuşmacı 1”) yalnızca geçici bir ayrımdır; gerçek kişi \
-kimliği anlamına gelmez.".to_string(),
+kimliği anlamına gelmez."
+            .to_string(),
         "Otomatik transkripsiyon çıktısı birebir taslaktır; belirsiz veya şüpheli bölümler \
-bilirkişi tarafından kontrol edilmelidir.".to_string(),
+bilirkişi tarafından kontrol edilmelidir."
+            .to_string(),
         "Yazılımsal yazma koruması, ilk bağlantı anında donanımsal yazma engelleme ile eşdeğer \
-değildir.".to_string(),
+değildir."
+            .to_string(),
         "Otomatik transkripsiyon başarısı kesin doğruluk garantisi olarak yorumlanamaz."
             .to_string(),
     ]
@@ -261,10 +265,7 @@ pub fn suggest_answer_from_evidence(
     if parts.is_empty() {
         None
     } else {
-        Some(format!(
-            "İlgili kayıt bölümleri: {}",
-            parts.join("; ")
-        ))
+        Some(format!("İlgili kayıt bölümleri: {}", parts.join("; ")))
     }
 }
 
@@ -359,8 +360,12 @@ mod tests {
             note: None,
             word_level_timestamps: false,
         };
-        c.transcripts
-            .push(Transcript::new_machine(asset.id, "test", vec![seg], Some("tr".into())));
+        c.transcripts.push(Transcript::new_machine(
+            asset.id,
+            "test",
+            vec![seg],
+            Some("tr".into()),
+        ));
         c
     }
 
@@ -393,7 +398,10 @@ mod tests {
         let case = Case::new("/tmp/case");
         let opts = ReportOptions::default();
         let r = generate_report(&case, &opts).unwrap();
-        assert!(r.missing_fields.iter().any(|f| f.contains("Dosya numarası")));
+        assert!(r
+            .missing_fields
+            .iter()
+            .any(|f| f.contains("Dosya numarası")));
         assert!(r
             .missing_fields
             .iter()

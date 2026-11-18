@@ -107,7 +107,11 @@ pub fn compute_wer(reference: &str, hypothesis: &str) -> WerReport {
         deletions: d,
         insertions: ins,
         wer: if n == 0 {
-            if h.is_empty() { 0.0 } else { 1.0 }
+            if h.is_empty() {
+                0.0
+            } else {
+                1.0
+            }
         } else {
             dist as f64 / n as f64
         },
@@ -184,7 +188,12 @@ pub fn evaluate_classes(reference: &str, hypothesis: &str, reference_silent: boo
     // Özel isim: referansta büyük harfle başlayan kelimeler.
     let proper: Vec<&str> = reference
         .split_whitespace()
-        .filter(|w| w.chars().next().map(|ch| ch.is_uppercase()).unwrap_or(false))
+        .filter(|w| {
+            w.chars()
+                .next()
+                .map(|ch| ch.is_uppercase())
+                .unwrap_or(false)
+        })
         .collect();
     for p in proper {
         let pn = normalize_words(p);
@@ -211,7 +220,9 @@ pub fn evaluate_classes(reference: &str, hypothesis: &str, reference_silent: boo
     for w in &r {
         let is_neg = NEGATIONS.iter().any(|neg| w == neg || w.starts_with(neg));
         if is_neg {
-            let present = h.iter().any(|hw| hw == w || hw.starts_with(w) || w.starts_with(hw.as_str()));
+            let present = h
+                .iter()
+                .any(|hw| hw == w || hw.starts_with(w) || w.starts_with(hw.as_str()));
             if !present {
                 c.negation_errors += 1;
             }
@@ -250,11 +261,7 @@ pub struct BenchmarkReport {
 
 impl BenchmarkReport {
     /// Örneklerden özet rapor üretir.
-    pub fn from_samples(
-        model_name: &str,
-        model_version: &str,
-        samples: Vec<SampleResult>,
-    ) -> Self {
+    pub fn from_samples(model_name: &str, model_version: &str, samples: Vec<SampleResult>) -> Self {
         let n = samples.len().max(1) as f64;
         let mean_wer = samples.iter().map(|s| s.evaluation.wer.wer).sum::<f64>() / n;
         let mean_cer = samples.iter().map(|s| s.evaluation.wer.cer).sum::<f64>() / n;
@@ -338,7 +345,11 @@ mod tests {
 
     #[test]
     fn hallucination_counted() {
-        let c = evaluate_classes("kısa bir cümle", "kısa bir cümle ekstra kelimeler burada", false);
+        let c = evaluate_classes(
+            "kısa bir cümle",
+            "kısa bir cümle ekstra kelimeler burada",
+            false,
+        );
         assert!(c.hallucinated_words >= 3);
     }
 

@@ -21,9 +21,7 @@ pub mod decode;
 
 #[cfg(feature = "playback")]
 pub use player::AudioPlayer;
-pub use waveform::{
-    ChannelSelection, Marker, PlaybackRate, PlaybackState, Waveform,
-};
+pub use waveform::{ChannelSelection, Marker, PlaybackRate, PlaybackState, Waveform};
 
 /// Algılama ve envanter hataları.
 #[derive(Debug, Error)]
@@ -201,9 +199,12 @@ fn parse_wav(bytes: &[u8], info: &mut AudioTechnicalInfo) {
     let mut data_len: Option<u32> = None;
     while pos + 8 <= bytes.len() {
         let id = &bytes[pos..pos + 4];
-        let size =
-            u32::from_le_bytes([bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]])
-                as usize;
+        let size = u32::from_le_bytes([
+            bytes[pos + 4],
+            bytes[pos + 5],
+            bytes[pos + 6],
+            bytes[pos + 7],
+        ]) as usize;
         let body = pos + 8;
         match id {
             b"fmt " => {
@@ -220,8 +221,7 @@ fn parse_wav(bytes: &[u8], info: &mut AudioTechnicalInfo) {
                     info.sample_rate_hz = Some(sample_rate);
                     info.bit_depth = Some(bits);
                     info.codec = "PCM".into();
-                    info.bit_rate_bps =
-                        Some(sample_rate as u64 * channels as u64 * bits as u64);
+                    info.bit_rate_bps = Some(sample_rate as u64 * channels as u64 * bits as u64);
                     info.channel_layout = Some(match channels {
                         1 => "mono".into(),
                         2 => "stereo".into(),
@@ -284,7 +284,10 @@ pub fn inventory(path: &std::path::Path) -> Result<AudioTechnicalInfo, AudioErro
     let container = match detect_container(&bytes) {
         Some(c) => c,
         None => {
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or_default();
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or_default();
             match Container::from_extension(ext) {
                 Some(c) => {
                     info.warnings

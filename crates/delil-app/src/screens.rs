@@ -134,7 +134,10 @@ fn draw_home(app: &mut DelilApp, ui: &mut egui::Ui) {
         ui.heading("YENİ BİLİRKİŞİ RAPORU OLUŞTUR");
         ui.add_space(8.0);
         if ui
-            .add_sized([320.0, 56.0], egui::Button::new("➕  Yeni bilirkişi raporu oluştur"))
+            .add_sized(
+                [320.0, 56.0],
+                egui::Button::new("➕  Yeni bilirkişi raporu oluştur"),
+            )
             .clicked()
         {
             app.screen = Screen::NewInvestigation;
@@ -364,7 +367,14 @@ fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
                 ui.label("Dalga biçimi yüklenmedi.");
             }
             ui.horizontal(|ui| {
-                if ui.button(if app.playback.playing { "⏸ Duraklat" } else { "▶ Oynat" }).clicked() {
+                if ui
+                    .button(if app.playback.playing {
+                        "⏸ Duraklat"
+                    } else {
+                        "▶ Oynat"
+                    })
+                    .clicked()
+                {
                     app.playback.toggle();
                     if let Some(p) = &app.player {
                         if app.playback.playing {
@@ -386,7 +396,10 @@ fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
                         let _ = p.seek(app.playback.position_seconds);
                     }
                 }
-                if ui.button(format!("Hız: {:.2}x", app.playback.rate.0)).clicked() {
+                if ui
+                    .button(format!("Hız: {:.2}x", app.playback.rate.0))
+                    .clicked()
+                {
                     app.playback.rate.next();
                     if let Some(p) = &app.player {
                         p.set_rate(&app.playback.rate);
@@ -400,10 +413,7 @@ fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
                     app.playback.position_seconds, app.playback.duration_seconds
                 ));
                 if app.player.is_none() {
-                    ui.colored_label(
-                        egui::Color32::from_rgb(200, 120, 0),
-                        "(ses çıkışı yok)",
-                    );
+                    ui.colored_label(egui::Color32::from_rgb(200, 120, 0), "(ses çıkışı yok)");
                 }
             });
             ui.label(format!("Kanal: {}", app.playback.channel.label_tr()));
@@ -592,7 +602,12 @@ fn draw_result(app: &mut DelilApp, ui: &mut egui::Ui) {
 fn rfd_pick_file() -> Option<std::path::PathBuf> {
     // Native dosya seçici yoksa (başsız ortam), None döner.
     rfd::FileDialog::new()
-        .add_filter("Belgeler", &["pdf", "udf", "docx", "doc", "txt", "png", "jpg", "jpeg", "tif", "tiff"])
+        .add_filter(
+            "Belgeler",
+            &[
+                "pdf", "udf", "docx", "doc", "txt", "png", "jpg", "jpeg", "tif", "tiff",
+            ],
+        )
         .pick_file()
 }
 
@@ -628,7 +643,10 @@ mod tests {
     fn workflow_state_starts_pending() {
         let w = WorkflowState::new();
         assert_eq!(w.steps.len(), 8);
-        assert!(w.steps.iter().all(|(_, s, _)| matches!(s, StepState::Pending)));
+        assert!(w
+            .steps
+            .iter()
+            .all(|(_, s, _)| matches!(s, StepState::Pending)));
         assert_eq!(w.progress(), 0.0);
     }
 

@@ -207,8 +207,7 @@ mod tests {
         let c = sample_case();
         let p = dir.path().join("m.json");
         write_full_manifest(&c, &p).unwrap();
-        let back: FullManifest =
-            serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+        let back: FullManifest = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
         assert_eq!(back.materials.len(), 1);
     }
 }

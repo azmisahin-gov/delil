@@ -84,7 +84,9 @@ impl SignedManifest {
         let sig_bytes = base64::engine::general_purpose::STANDARD
             .decode(&self.signature)
             .map_err(|_| UpdateError::BadSignature)?;
-        let sig_arr: [u8; 64] = sig_bytes.try_into().map_err(|_| UpdateError::BadSignature)?;
+        let sig_arr: [u8; 64] = sig_bytes
+            .try_into()
+            .map_err(|_| UpdateError::BadSignature)?;
         let sig = Signature::from_bytes(&sig_arr);
         let payload = manifest_payload(&self.manifest)?;
         vk.verify(&payload, &sig)
@@ -221,8 +223,8 @@ impl UpdateManager {
         let dest = self.backup_dir.join(format!("backup-{stamp}.zip"));
         let file = std::fs::File::create(&dest)?;
         let mut zip = zip::ZipWriter::new(file);
-        let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let opts: zip::write::FileOptions<'_, ()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         if self.install_dir.exists() {
             for entry in walk_files(&self.install_dir)? {
                 let rel = entry.strip_prefix(&self.install_dir).unwrap();
@@ -350,10 +352,7 @@ mod tests {
 
     #[test]
     fn version_comparison() {
-        assert_eq!(
-            compare_versions("1.2.3", "1.2.4"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(compare_versions("1.2.3", "1.2.4"), std::cmp::Ordering::Less);
         assert_eq!(
             compare_versions("1.2.10", "1.2.9"),
             std::cmp::Ordering::Greater
@@ -418,7 +417,10 @@ mod tests {
             tempfile::tempdir().unwrap().path(),
             tempfile::tempdir().unwrap().path(),
         );
-        assert!(matches!(mgr.apply(&signed, &pkg, true), Err(UpdateError::Busy(_))));
+        assert!(matches!(
+            mgr.apply(&signed, &pkg, true),
+            Err(UpdateError::Busy(_))
+        ));
     }
 
     #[test]
@@ -453,12 +455,7 @@ mod tests {
         // Mevcut kurulum.
         std::fs::write(install.path().join("delil.exe"), b"old").unwrap();
 
-        let mgr = UpdateManager::new(
-            "1.0.0",
-            public_key_of(&sk),
-            install.path(),
-            backup.path(),
-        );
+        let mgr = UpdateManager::new("1.0.0", public_key_of(&sk), install.path(), backup.path());
         let p = mgr.apply(&signed, &pkg, false).unwrap();
         assert_eq!(p, UpdateProgress::Done);
         assert_eq!(
@@ -482,7 +479,10 @@ mod tests {
         let install = tempfile::tempdir().unwrap();
         let backup = tempfile::tempdir().unwrap();
         let mgr = UpdateManager::new("1.0.0", public_key_of(&sk), install.path(), backup.path());
-        assert_eq!(mgr.apply(&signed, &pkg, false).unwrap(), UpdateProgress::Done);
+        assert_eq!(
+            mgr.apply(&signed, &pkg, false).unwrap(),
+            UpdateProgress::Done
+        );
         assert!(install.path().join("app.bin").exists());
     }
 
@@ -491,12 +491,7 @@ mod tests {
         let install = tempfile::tempdir().unwrap();
         std::fs::write(install.path().join("a.txt"), b"v1").unwrap();
         let backup_dir = tempfile::tempdir().unwrap();
-        let mgr = UpdateManager::new(
-            "1.0.0",
-            "",
-            install.path(),
-            backup_dir.path(),
-        );
+        let mgr = UpdateManager::new("1.0.0", "", install.path(), backup_dir.path());
         let backup = mgr.backup_current().unwrap();
         // Kurulumu boz.
         std::fs::write(install.path().join("a.txt"), b"bozuk").unwrap();

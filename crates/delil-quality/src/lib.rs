@@ -107,8 +107,23 @@ impl Default for Thresholds {
 
 /// Türkçe olumsuzluk sözcükleri; bunlar içeren segmentler öncelikli incelenir.
 const NEGATION_WORDS: &[&str] = &[
-    "değil", "değildi", "yok", "yoktu", "asla", "hiçbir", "hiç", "olmaz", "olmadı", "etmez",
-    "etmedi", "bilmem", "bilmiyorum", "hayır", "olmamış", "yapmadı", "yapmaz",
+    "değil",
+    "değildi",
+    "yok",
+    "yoktu",
+    "asla",
+    "hiçbir",
+    "hiç",
+    "olmaz",
+    "olmadı",
+    "etmez",
+    "etmedi",
+    "bilmem",
+    "bilmiyorum",
+    "hayır",
+    "olmamış",
+    "yapmadı",
+    "yapmaz",
 ];
 
 /// Sayı veya tarih içeren metin kalıbı (basit sezgisel kontrol).
@@ -212,7 +227,8 @@ pub fn check_transcript(
         let text = seg.text.trim();
 
         // 5. Konuşma varken boş transkript.
-        if text.chars().count() <= th.empty_text_chars && seg.end_seconds - seg.start_seconds > 1.0 {
+        if text.chars().count() <= th.empty_text_chars && seg.end_seconds - seg.start_seconds > 1.0
+        {
             issues.push(SegmentIssue {
                 segment_index: i,
                 kind: QualityIssueKind::EmptyTranscriptWithSpeech,
@@ -379,7 +395,10 @@ pub fn check_transcript(
                 segment_index: pair[0].index,
                 kind: QualityIssueKind::ChunkBoundaryLoss,
                 flag: QualityFlag::ReviewSuggested,
-                description: format!("Segmentler arasında {:.1}s boşluk; parça sınırı olabilir.", gap),
+                description: format!(
+                    "Segmentler arasında {:.1}s boşluk; parça sınırı olabilir.",
+                    gap
+                ),
                 start_seconds: pair[0].end_seconds,
                 end_seconds: pair[1].start_seconds,
             });

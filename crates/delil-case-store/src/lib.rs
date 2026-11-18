@@ -67,8 +67,8 @@ const NONCE_LEN: usize = 12;
 /// Argon2id ile paroladan 32 baytlık anahtar türetir.
 fn derive_key(password: &str, salt: &[u8]) -> Result<[u8; 32]> {
     let mut key = [0u8; 32];
-    let params = argon2::Params::new(19_456, 2, 1, Some(32))
-        .map_err(|e| StoreError::Kdf(e.to_string()))?;
+    let params =
+        argon2::Params::new(19_456, 2, 1, Some(32)).map_err(|e| StoreError::Kdf(e.to_string()))?;
     let a = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
     a.hash_password_into(password.as_bytes(), salt, &mut key)
         .map_err(|e| StoreError::Kdf(e.to_string()))?;
@@ -110,7 +110,9 @@ pub fn decrypt_bytes(envelope: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ct = base64_decode(&env.ciphertext)?;
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let plain = cipher.decrypt(nonce, ct.as_ref()).map_err(|_| StoreError::Decrypt)?;
+    let plain = cipher
+        .decrypt(nonce, ct.as_ref())
+        .map_err(|_| StoreError::Decrypt)?;
     // Bütünlük göstergesi.
     let got = hex::encode(delil_hash::sha256_bytes(&plain));
     if got != env.plain_sha256 {
@@ -331,7 +333,11 @@ impl CaseStore {
 
         // Bütünlük doğrulaması: her dosyanın SHA-256'sı manifestle eşleşmeli.
         for entry in &manifest.entries {
-            let target = dest.join(entry.relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+            let target = dest.join(
+                entry
+                    .relative_path
+                    .replace('/', std::path::MAIN_SEPARATOR_STR),
+            );
             if !target.exists() {
                 return Err(StoreError::Integrity(format!(
                     "Geri yüklenen dosya eksik: {}",
@@ -458,9 +464,7 @@ pub mod dpapi {
 
     /// Veriyi DPAPI ile korur.
     pub fn protect(plain: &[u8]) -> super::Result<Vec<u8>> {
-        use windows::Win32::Security::Cryptography::{
-            CryptProtectData, CRYPT_INTEGER_BLOB,
-        };
+        use windows::Win32::Security::Cryptography::{CryptProtectData, CRYPT_INTEGER_BLOB};
         unsafe {
             let mut input = CRYPT_INTEGER_BLOB {
                 cbData: plain.len() as u32,
@@ -482,9 +486,7 @@ pub mod dpapi {
 
     /// DPAPI ile korunmuş veriyi çözer.
     pub fn unprotect(protected: &[u8]) -> super::Result<Vec<u8>> {
-        use windows::Win32::Security::Cryptography::{
-            CryptUnprotectData, CRYPT_INTEGER_BLOB,
-        };
+        use windows::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
         unsafe {
             let mut input = CRYPT_INTEGER_BLOB {
                 cbData: protected.len() as u32,
@@ -578,14 +580,24 @@ mod tests {
         let case = Case::new(store.root.to_string_lossy().to_string());
         store.save_case(&case, &key).unwrap();
         // Materyal dosyası ekle.
-        std::fs::write(store.root.join("materials").join("ses.wav"), b"RIFF....WAVE").unwrap();
+        std::fs::write(
+            store.root.join("materials").join("ses.wav"),
+            b"RIFF....WAVE",
+        )
+        .unwrap();
 
         let backup = dir.path().join("yedek.delilbackup");
         let manifest = store.backup("parola-abc", &backup).unwrap();
         assert!(backup.exists());
-        assert!(manifest.entries.iter().any(|e| e.relative_path.contains("ses.wav")));
+        assert!(manifest
+            .entries
+            .iter()
+            .any(|e| e.relative_path.contains("ses.wav")));
         // Ana anahtar yedeğe girmemeli.
-        assert!(!manifest.entries.iter().any(|e| e.relative_path.starts_with("keys/")));
+        assert!(!manifest
+            .entries
+            .iter()
+            .any(|e| e.relative_path.starts_with("keys/")));
 
         // Başka konuma geri yükle.
         let restore_dir = dir.path().join("restored");
@@ -627,8 +639,8 @@ mod tests {
             let cursor = std::io::Cursor::new(raw);
             let mut archive = zip::ZipArchive::new(cursor).unwrap();
             let mut zw = zip::ZipWriter::new(std::io::Cursor::new(&mut zip_buf));
-            let opts: zip::write::FileOptions<'_, ()> =
-                zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
             for i in 0..archive.len() {
                 let mut f = archive.by_index(i).unwrap();
                 let name = f.name().to_string();

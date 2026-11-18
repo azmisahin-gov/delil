@@ -76,17 +76,13 @@ impl AudioPlayer {
     ///
     /// `duration_seconds` çağıran tarafından biliniyorsa (teknik envanterden)
     /// verilir; bilinmiyorsa 0.0 geçilebilir.
-    pub fn load(
-        &mut self,
-        path: &Path,
-        duration_seconds: f64,
-    ) -> Result<(), PlaybackError> {
+    pub fn load(&mut self, path: &Path, duration_seconds: f64) -> Result<(), PlaybackError> {
         // Önceki kaynağı durdur.
         self.stop();
         let file = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(file);
-        let source = rodio::Decoder::new(reader)
-            .map_err(|e| PlaybackError::Decode(e.to_string()))?;
+        let source =
+            rodio::Decoder::new(reader).map_err(|e| PlaybackError::Decode(e.to_string()))?;
         let sink = rodio::Sink::try_new(&self.handle)
             .map_err(|e| PlaybackError::OutputUnavailable(e.to_string()))?;
         sink.append(source);
@@ -132,7 +128,8 @@ impl AudioPlayer {
             .as_ref()
             .ok_or_else(|| PlaybackError::Seek("Kaynak yüklenmedi".into()))?;
         let d = std::time::Duration::from_secs_f64(seconds.max(0.0));
-        s.try_seek(d).map_err(|e| PlaybackError::Seek(e.to_string()))
+        s.try_seek(d)
+            .map_err(|e| PlaybackError::Seek(e.to_string()))
     }
 
     /// Oynatma bitti mi?
@@ -172,6 +169,8 @@ mod tests {
         let Ok(mut p) = AudioPlayer::new() else {
             return; // ses çıkışı yoksa test atlanır
         };
-        assert!(p.load(Path::new("/nonexistent/delil/xyz.wav"), 0.0).is_err());
+        assert!(p
+            .load(Path::new("/nonexistent/delil/xyz.wav"), 0.0)
+            .is_err());
     }
 }

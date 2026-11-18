@@ -384,7 +384,11 @@ pub struct AuditEntry {
 }
 
 impl AuditEntry {
-    pub fn new(actor: impl Into<String>, action: impl Into<String>, detail: impl Into<String>) -> Self {
+    pub fn new(
+        actor: impl Into<String>,
+        action: impl Into<String>,
+        detail: impl Into<String>,
+    ) -> Self {
         Self {
             at: Utc::now(),
             actor: actor.into(),
@@ -472,7 +476,12 @@ impl Case {
         self.updated_at = Utc::now();
     }
 
-    pub fn add_audit(&mut self, actor: impl Into<String>, action: impl Into<String>, detail: impl Into<String>) {
+    pub fn add_audit(
+        &mut self,
+        actor: impl Into<String>,
+        action: impl Into<String>,
+        detail: impl Into<String>,
+    ) {
         self.audit.push(AuditEntry::new(actor, action, detail));
         self.touch();
     }
@@ -487,7 +496,10 @@ impl Case {
 
     /// Transkripti olan ses varlıkları.
     pub fn transcribed_audio_ids(&self) -> Vec<AudioAssetId> {
-        self.transcripts.iter().map(|t| t.audio_asset_id.clone()).collect()
+        self.transcripts
+            .iter()
+            .map(|t| t.audio_asset_id.clone())
+            .collect()
     }
 }
 

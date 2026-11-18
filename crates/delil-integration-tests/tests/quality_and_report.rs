@@ -160,7 +160,12 @@ fn quality_report_is_not_a_fake_accuracy_percentage() {
     assert!(!json.contains("accuracy"));
     assert!(!json.contains("confidence"));
     // Yalnızca bilinen durum etiketleri kullanılır.
-    for flag in [QualityFlag::Normal, QualityFlag::ReviewSuggested, QualityFlag::PriorityReview, QualityFlag::Unintelligible] {
+    for flag in [
+        QualityFlag::Normal,
+        QualityFlag::ReviewSuggested,
+        QualityFlag::PriorityReview,
+        QualityFlag::Unintelligible,
+    ] {
         assert!(!flag.label_tr().is_empty());
     }
 }
@@ -197,10 +202,7 @@ fn report_includes_limitations_and_method() {
         .limitations
         .iter()
         .any(|l| l.contains("konuşmacı") || l.contains("Konuşmacı")));
-    assert!(report
-        .limitations
-        .iter()
-        .any(|l| l.contains("garanti")));
+    assert!(report.limitations.iter().any(|l| l.contains("garanti")));
     assert!(!report.method.is_empty());
     assert!(!report.transcription_method.is_empty());
 }

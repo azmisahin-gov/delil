@@ -25,7 +25,10 @@ pub enum EditOperation {
     /// Anlaşılamayan bölüm işaretini değiştirir.
     SetUnintelligible { index: usize, marked: bool },
     /// Konuşmacı etiketi ekler/değiştirir.
-    SetSpeaker { index: usize, speaker: Option<String> },
+    SetSpeaker {
+        index: usize,
+        speaker: Option<String>,
+    },
     /// Not ekler/değiştirir.
     SetNote { index: usize, note: Option<String> },
     /// Segment kalite bayrağını değiştirir.
@@ -206,8 +209,8 @@ pub enum EditError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::Transcript;
     use crate::ids::AudioAssetId;
+    use crate::model::Transcript;
 
     fn seg(i: usize, text: &str) -> TranscriptSegment {
         TranscriptSegment {

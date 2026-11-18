@@ -8,10 +8,7 @@ use std::path::Path;
 ///
 /// Başlıkta ses dosyası, süre, model ve sürüm bilgileri; gövdede zaman kodlu
 /// (istenirse) transkript satırları yer alır.
-pub fn export_transcript_txt(
-    transcript: &Transcript,
-    path: &Path,
-) -> Result<(), ExportError> {
+pub fn export_transcript_txt(transcript: &Transcript, path: &Path) -> Result<(), ExportError> {
     let text = render_transcript_txt(transcript);
     if let Some(p) = path.parent() {
         std::fs::create_dir_all(p)?;
@@ -28,7 +25,10 @@ pub fn render_transcript_txt(transcript: &Transcript) -> String {
     out.push_str("==========================\n");
     out.push_str(&format!("Transkript kimliği: {}\n", transcript.id));
     out.push_str(&format!("Ses varlığı: {}\n", transcript.audio_asset_id));
-    out.push_str(&format!("Model: {} ({})\n", transcript.model_name, transcript.model_version));
+    out.push_str(&format!(
+        "Model: {} ({})\n",
+        transcript.model_name, transcript.model_version
+    ));
     if let Some(l) = &transcript.detected_language {
         out.push_str(&format!("Algılanan dil: {l}\n"));
     }
@@ -36,10 +36,17 @@ pub fn render_transcript_txt(transcript: &Transcript) -> String {
         out.push_str(&format!("Kullanıcı dil düzeltmesi: {o}\n"));
     }
     out.push_str(&format!("Sürüm: {} ({})\n", v.version, v.status.label_tr()));
-    out.push_str(&format!("Oluşturulma: {}\n", v.created_at.format("%d.%m.%Y %H:%M")));
+    out.push_str(&format!(
+        "Oluşturulma: {}\n",
+        v.created_at.format("%d.%m.%Y %H:%M")
+    ));
     out.push_str(&format!(
         "Birebir (verbatim): {}\n",
-        if transcript.verbatim { "evet" } else { "hayır" }
+        if transcript.verbatim {
+            "evet"
+        } else {
+            "hayır"
+        }
     ));
     out.push_str("==========================\n\n");
 

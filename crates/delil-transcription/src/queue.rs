@@ -163,7 +163,11 @@ impl Queue {
             return false;
         }
         // Kuyrukta aynı anahtarla bekleyen iş varsa tekrar ekleme.
-        if self.items.iter().any(|i| i.dedup_key() == key && !i.state.is_terminal()) {
+        if self
+            .items
+            .iter()
+            .any(|i| i.dedup_key() == key && !i.state.is_terminal())
+        {
             return false;
         }
         self.items.push(item);
@@ -254,10 +258,7 @@ impl Queue {
                 QueueOutcome::SkippedDuplicate => {}
                 _ => {}
             }
-            let terminal = matches!(
-                outcome,
-                QueueOutcome::Cancelled | QueueOutcome::Paused
-            );
+            let terminal = matches!(outcome, QueueOutcome::Cancelled | QueueOutcome::Paused);
             outcomes.push(outcome);
             if terminal {
                 break;
@@ -490,7 +491,12 @@ mod tests {
         assert_eq!(q.pending_count(), 2);
         let mut eng = FakeEngine::new("Merhaba dünya");
         let control = ControlFlag::new();
-        let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        let out = q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
         assert_eq!(out.len(), 2);
         assert!(out.iter().all(|o| matches!(o, QueueOutcome::Done(_))));
         assert_eq!(q.pending_count(), 0);
@@ -502,7 +508,12 @@ mod tests {
         assert!(q.enqueue(item("a", "same-sha")));
         let mut eng = FakeEngine::new("x");
         let control = ControlFlag::new();
-        q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
         // Aynı hash ve ayarla tekrar ekleme reddedilir.
         assert!(!q.enqueue(item("a2", "same-sha")));
         assert_eq!(q.pending_count(), 0);
@@ -514,12 +525,22 @@ mod tests {
         assert!(q.enqueue(item("a", "sha-x")));
         let mut eng = FakeEngine::new("x");
         let control = ControlFlag::new();
-        q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
 
         // Farklı ayar imzası -> yeni iş.
         let mut opts = TranscriptionOptions::default();
         opts.language = Some("en".into());
-        let it = QueueItem::new("a", PathBuf::from("/tmp/a.wav"), Some("sha-x".into()), &opts);
+        let it = QueueItem::new(
+            "a",
+            PathBuf::from("/tmp/a.wav"),
+            Some("sha-x".into()),
+            &opts,
+        );
         assert!(q.enqueue(it));
     }
 
@@ -530,7 +551,12 @@ mod tests {
         // İlk 2 deneme başarısız, 3. başarılı; kuyruk tek çağrıda yeniden dener.
         let mut eng = FakeEngine::failing("başarılı", 2);
         let control = ControlFlag::new();
-        let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        let out = q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
         assert!(
             matches!(out[0], QueueOutcome::Done(_)),
             "otomatik yeniden deneme başarılı olmalı: {:?}",
@@ -547,7 +573,12 @@ mod tests {
         assert!(q.enqueue(item("a", "sha-rf")));
         let mut eng = FakeEngine::failing("asla", 100);
         let control = ControlFlag::new();
-        let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        let out = q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
         assert!(matches!(out[0], QueueOutcome::Failed(_)));
         assert!(matches!(q.items()[0].state, JobState::Failed { .. }));
     }
@@ -560,7 +591,12 @@ mod tests {
         let mut eng = FakeEngine::new("x");
         let control = ControlFlag::new();
         control.cancel();
-        let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        let out = q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
         assert!(matches!(out[0], QueueOutcome::Cancelled));
     }
 
@@ -571,7 +607,12 @@ mod tests {
         let mut eng = FakeEngine::new("x");
         let control = ControlFlag::new();
         control.pause();
-        let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        let out = q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
         assert!(matches!(out[0], QueueOutcome::Paused));
         // Duraklatılmış iş kuyrukta kalır.
         assert_eq!(q.pending_count(), 1);
@@ -597,7 +638,12 @@ mod tests {
         // Kaldığı yerden devam eder.
         let mut eng = FakeEngine::new("devam");
         let control = ControlFlag::new();
-        let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode_ok);
+        let out = q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &decode_ok,
+        );
         assert!(matches!(out[0], QueueOutcome::Done(_)));
     }
 
@@ -607,10 +653,14 @@ mod tests {
         q.enqueue(item("a", "sha-d"));
         let mut eng = FakeEngine::new("x");
         let control = ControlFlag::new();
-        let fail_decode = |_p: &Path| -> Result<Vec<f32>> {
-            Err(TranscriptionError::Decode("bozuk ses".into()))
-        };
-        let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &fail_decode);
+        let fail_decode =
+            |_p: &Path| -> Result<Vec<f32>> { Err(TranscriptionError::Decode("bozuk ses".into())) };
+        let out = q.run_all(
+            &mut eng,
+            &TranscriptionOptions::default(),
+            &control,
+            &fail_decode,
+        );
         assert!(matches!(out[0], QueueOutcome::Failed(_)));
     }
 

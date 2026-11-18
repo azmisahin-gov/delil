@@ -30,9 +30,7 @@ mod tests {
         let p = dir.path().join("gorev.udf");
         let mut doc = UdfDocument::default();
         doc.push_paragraph(Paragraph::text("Dosya No: 2024/777 Esas"));
-        doc.push_paragraph(Paragraph::text(
-            "Bilirkişiye Sorulan Sorular:",
-        ));
+        doc.push_paragraph(Paragraph::text("Bilirkişiye Sorulan Sorular:"));
         doc.push_paragraph(Paragraph::text("1. Kayıtta ne konuşuluyor?"));
         write_udf(&doc, &p).unwrap();
 

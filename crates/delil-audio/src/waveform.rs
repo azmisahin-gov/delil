@@ -241,9 +241,7 @@ mod tests {
 
     #[test]
     fn waveform_envelope_from_samples() {
-        let samples: Vec<f32> = (0..16000)
-            .map(|i| (i as f32 * 0.05).sin() * 0.8)
-            .collect();
+        let samples: Vec<f32> = (0..16000).map(|i| (i as f32 * 0.05).sin() * 0.8).collect();
         let wf = Waveform::from_samples(&samples, 100);
         assert_eq!(wf.buckets, 100);
         assert_eq!(wf.min.len(), 100);

@@ -5,7 +5,7 @@
 //! Bu doğrulama UYAP Editör testinin yerine geçmez; yalnızca yapısal bir ön
 //! kontroldür. Sonuç raporda bu sınır açıkça belirtilir.
 
-use crate::reader::{parse_content_xml, extract_content_xml, ParsedBlock};
+use crate::reader::{extract_content_xml, parse_content_xml, ParsedBlock};
 use crate::{Result, FORMAT_ID};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -228,7 +228,10 @@ pub fn validate_content_xml(bytes: &[u8]) -> Result<ValidationReport> {
         //    bilinen Türkçe karakterler korunmalı.
         let turkish_chars = ['ı', 'İ', 'ş', 'Ş', 'ğ', 'Ğ', 'ü', 'Ü', 'ö', 'Ö', 'ç', 'Ç'];
         let turkish_in_pool = p.pool.chars().any(|c| turkish_chars.contains(&c));
-        let turkish_ok = p.pool.chars().all(|c| !c.is_control() || c == '\n' || c == '\t' || c == '\r');
+        let turkish_ok = p
+            .pool
+            .chars()
+            .all(|c| !c.is_control() || c == '\n' || c == '\t' || c == '\r');
         checks.push(CheckResult {
             name: "Karakter geçerliliği".into(),
             passed: turkish_ok,
@@ -283,7 +286,9 @@ fn check_offsets(xml: &str, pool: &str) -> (bool, String) {
     let mut rest = xml;
     while let Some(pos) = rest.find("startOffset=\"") {
         let after = &rest[pos + "startOffset=\"".len()..];
-        let Some(end_quote) = after.find('"') else { break };
+        let Some(end_quote) = after.find('"') else {
+            break;
+        };
         let start: usize = after[..end_quote].parse().unwrap_or(0);
         // Aynı öğe içinde length ara.
         let tail = &after[end_quote..];
@@ -304,7 +309,10 @@ fn check_offsets(xml: &str, pool: &str) -> (bool, String) {
         }
     }
     if bad.is_empty() {
-        (true, format!("{count} ofset aralığı geçerli (havuz {pool_len} karakter)"))
+        (
+            true,
+            format!("{count} ofset aralığı geçerli (havuz {pool_len} karakter)"),
+        )
     } else {
         (false, format!("Geçersiz aralıklar: {}", bad.join(", ")))
     }

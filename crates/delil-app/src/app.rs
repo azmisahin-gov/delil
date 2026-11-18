@@ -178,9 +178,8 @@ impl DelilApp {
 
     /// İncelemeyi başlatır.
     pub fn start_investigation(&mut self) {
-        let mut cfg = PipelineConfig::new(
-            dirs_case_root().unwrap_or_else(|| PathBuf::from("./delil-vaka")),
-        );
+        let mut cfg =
+            PipelineConfig::new(dirs_case_root().unwrap_or_else(|| PathBuf::from("./delil-vaka")));
         cfg.assignment_path = self.assignment_path.clone();
         cfg.material_source = self.material_path.clone();
         if let Some(m) = &self.material_path {

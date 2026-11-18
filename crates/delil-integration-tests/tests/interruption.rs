@@ -59,7 +59,10 @@ fn crash_during_transcription_does_not_corrupt_queue() {
     // olmasa bile panik olmamalı.
     std::fs::write(&queue_path, b"{ bozuk json").unwrap();
     let res = Queue::with_persistence(&queue_path);
-    assert!(res.is_err(), "bozuk kuyruk dosyası hata döndürmeli, panik olmamalı");
+    assert!(
+        res.is_err(),
+        "bozuk kuyruk dosyası hata döndürmeli, panik olmamalı"
+    );
 }
 
 #[test]
@@ -81,10 +84,14 @@ fn cancellation_is_honored_mid_queue() {
     let control = ControlFlag::new();
     control.cancel();
     let mut eng = NoopEngine;
-    let decode = |_p: &std::path::Path| -> delil_transcription::Result<Vec<f32>> {
-        Ok(vec![0.0f32; 16000])
-    };
-    let out = q.run_all(&mut eng, &TranscriptionOptions::default(), &control, &decode);
+    let decode =
+        |_p: &std::path::Path| -> delil_transcription::Result<Vec<f32>> { Ok(vec![0.0f32; 16000]) };
+    let out = q.run_all(
+        &mut eng,
+        &TranscriptionOptions::default(),
+        &control,
+        &decode,
+    );
     assert!(matches!(out[0], QueueOutcome::Cancelled));
     // Hiçbir iş tamamlanmadı.
     assert!(q.items().iter().all(|i| i.state != JobState::Done));
@@ -112,7 +119,9 @@ fn backup_interruption_leaves_original_intact() {
 
 #[test]
 fn update_failure_rolls_back() {
-    use delil_update::{sign_manifest, public_key_of, UpdateManager, UpdateManifest, UpdateProgress};
+    use delil_update::{
+        public_key_of, sign_manifest, UpdateManager, UpdateManifest, UpdateProgress,
+    };
     let sk = [9u8; 32];
     // Geçerli paket ve manifest.
     let mut pkg = Vec::new();
@@ -149,13 +158,22 @@ fn update_failure_rolls_back() {
     let mgr = UpdateManager::new("1.0.0", public_key_of(&sk), install.path(), backup.path());
     let p = mgr.apply(&signed, &pkg, false).unwrap();
     assert_eq!(p, UpdateProgress::Done);
-    assert_eq!(std::fs::read(install.path().join("delil.exe")).unwrap(), b"v2");
+    assert_eq!(
+        std::fs::read(install.path().join("delil.exe")).unwrap(),
+        b"v2"
+    );
 
     // Yedekten geri dönüş çalışır.
-    let backups: Vec<_> = std::fs::read_dir(backup.path()).unwrap().filter_map(|e| e.ok()).collect();
+    let backups: Vec<_> = std::fs::read_dir(backup.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
     assert!(!backups.is_empty());
     mgr.rollback(&backups[0].path()).unwrap();
-    assert_eq!(std::fs::read(install.path().join("delil.exe")).unwrap(), b"v1");
+    assert_eq!(
+        std::fs::read(install.path().join("delil.exe")).unwrap(),
+        b"v1"
+    );
 }
 
 /// Hiçbir şey yapmayan motor (iptal testi için).

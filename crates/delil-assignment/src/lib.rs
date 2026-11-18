@@ -6,9 +6,7 @@
 //! Çıkarılan her önemli alanın kaynak belgeyle ilişkisi (`FieldSource`)
 //! tutulur: hangi sayfadan geldiği ve orijinal metin alıntısı.
 
-use delil_core::{
-    Assignment, DocumentReadMethod, FieldSource, Party, Question, QuestionId,
-};
+use delil_core::{Assignment, DocumentReadMethod, FieldSource, Party, Question, QuestionId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -173,9 +171,7 @@ pub fn docx_xml_to_text(xml: &str) -> String {
 /// Çıkarım kural tabanlıdır: bilinen etiket kalıpları (ör. "Dosya No:",
 /// "Mahkeme:") ve soru numaralandırması aranır. Her alanın kaynağı
 /// (`FieldSource`) kaydedilir.
-pub fn extract_assignment(
-    path: &std::path::Path,
-) -> Result<Assignment, AssignmentError> {
+pub fn extract_assignment(path: &std::path::Path) -> Result<Assignment, AssignmentError> {
     let text = extract_text(path)?;
     let mut a = parse_assignment_text(&text);
     a.source_document = Some(path.to_string_lossy().into_owned());
@@ -192,12 +188,27 @@ pub fn parse_assignment_text(text: &ExtractedText) -> Assignment {
 
     // Alan etiketleri ve karşılık gelen hedef alanlar.
     let label_patterns: &[(&[&str], LabelTarget)] = &[
-        (&["dosya no", "dosya numarası", "esas no", "dosya no."], LabelTarget::CaseNumber),
-        (&["mahkeme", "birim", "cumhuriyet başsavcılığı"], LabelTarget::Court),
-        (&["görevlendiren", "görevlendirme yapan", "merci"], LabelTarget::Authority),
+        (
+            &["dosya no", "dosya numarası", "esas no", "dosya no."],
+            LabelTarget::CaseNumber,
+        ),
+        (
+            &["mahkeme", "birim", "cumhuriyet başsavcılığı"],
+            LabelTarget::Court,
+        ),
+        (
+            &["görevlendiren", "görevlendirme yapan", "merci"],
+            LabelTarget::Authority,
+        ),
         (&["konu", "inceleme konusu"], LabelTarget::Subject),
-        (&["görevlendirme tarihi", "tarih"], LabelTarget::AssignmentDate),
-        (&["teslim süresi", "rapor teslim", "süre"], LabelTarget::DueDate),
+        (
+            &["görevlendirme tarihi", "tarih"],
+            LabelTarget::AssignmentDate,
+        ),
+        (
+            &["teslim süresi", "rapor teslim", "süre"],
+            LabelTarget::DueDate,
+        ),
         (&["şüpheli", "sanık"], LabelTarget::PartySuspect),
         (&["mağdur", "müşteki"], LabelTarget::PartyVictim),
     ];
@@ -344,7 +355,10 @@ pub fn parse_turkish_date(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
             if let (Ok(d), Ok(m), Ok(y)) = (
                 parts[0].trim().parse::<u32>(),
                 parts[1].trim().parse::<u32>(),
-                parts[2].trim().trim_end_matches(|c: char| !c.is_ascii_digit()).parse::<i32>(),
+                parts[2]
+                    .trim()
+                    .trim_end_matches(|c: char| !c.is_ascii_digit())
+                    .parse::<i32>(),
             ) {
                 if let Some(nd) = NaiveDate::from_ymd_opt(y, m, d) {
                     return Utc
@@ -372,7 +386,10 @@ pub fn parse_turkish_date(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     let lower = s.to_lowercase();
     let words: Vec<&str> = lower.split_whitespace().collect();
     if words.len() >= 3 {
-        let d = words[0].trim_matches(|c: char| !c.is_ascii_digit()).parse::<u32>().ok();
+        let d = words[0]
+            .trim_matches(|c: char| !c.is_ascii_digit())
+            .parse::<u32>()
+            .ok();
         let m = months
             .iter()
             .find(|(name, _)| words[1].starts_with(name))
@@ -383,7 +400,9 @@ pub fn parse_turkish_date(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
             .ok();
         if let (Some(d), Some(m), Some(y)) = (d, m, y) {
             if let Some(nd) = NaiveDate::from_ymd_opt(y, m, d) {
-                return Utc.from_utc_datetime(&nd.and_hms_opt(0, 0, 0).unwrap()).into();
+                return Utc
+                    .from_utc_datetime(&nd.and_hms_opt(0, 0, 0).unwrap())
+                    .into();
             }
         }
     }
@@ -399,7 +418,10 @@ fn extract_questions(full: &str, text: &ExtractedText) -> Vec<Question> {
     let mut in_questions = false;
     let mut buffer = String::new();
 
-    let flush = |buffer: &mut String, ordinal: &mut u32, questions: &mut Vec<Question>, text: &ExtractedText| {
+    let flush = |buffer: &mut String,
+                 ordinal: &mut u32,
+                 questions: &mut Vec<Question>,
+                 text: &ExtractedText| {
         let q = buffer.trim();
         if !q.is_empty() {
             *ordinal += 1;
@@ -481,7 +503,11 @@ fn is_questions_heading(lower: &str) -> bool {
             || t.contains("sorulan sorular")
             || t.contains("sorular")
             || t.contains("istenen sorular"))
-        && !t.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
+        && !t
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
 }
 
 fn is_question_start(line: &str) -> bool {
@@ -542,7 +568,13 @@ fn extract_requested_actions(full: &str) -> Vec<String> {
                 in_section = false;
                 continue;
             }
-            out.push(t.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ')' || c == '-').trim().to_string());
+            out.push(
+                t.trim_start_matches(|c: char| {
+                    c.is_ascii_digit() || c == '.' || c == ')' || c == '-'
+                })
+                .trim()
+                .to_string(),
+            );
         }
     }
     out.retain(|s| !s.is_empty());
@@ -632,7 +664,10 @@ Bilirkişiye Sorulan Sorular:
         let a = parse_assignment_text(&sample_extracted());
         assert_eq!(a.case_number.as_deref(), Some("2024/123 Esas"));
         assert!(a.court.as_deref().unwrap().contains("Ankara"));
-        assert_eq!(a.subject.as_deref(), Some("Ses kaydının metne dönüştürülmesi"));
+        assert_eq!(
+            a.subject.as_deref(),
+            Some("Ses kaydının metne dönüştürülmesi")
+        );
     }
 
     #[test]
@@ -647,8 +682,14 @@ Bilirkişiye Sorulan Sorular:
     #[test]
     fn extracts_parties() {
         let a = parse_assignment_text(&sample_extracted());
-        assert!(a.parties.iter().any(|p| p.role == "Şüpheli" && p.name.contains("Ahmet")));
-        assert!(a.parties.iter().any(|p| p.role == "Mağdur" && p.name.contains("Mehmet")));
+        assert!(a
+            .parties
+            .iter()
+            .any(|p| p.role == "Şüpheli" && p.name.contains("Ahmet")));
+        assert!(a
+            .parties
+            .iter()
+            .any(|p| p.role == "Mağdur" && p.name.contains("Mehmet")));
     }
 
     #[test]
@@ -656,7 +697,10 @@ Bilirkişiye Sorulan Sorular:
         let a = parse_assignment_text(&sample_extracted());
         assert_eq!(a.questions.len(), 3);
         assert_eq!(a.questions[0].ordinal, 1);
-        assert_eq!(a.questions[0].original_text, "Kayıtta kimler konuşmaktadır?");
+        assert_eq!(
+            a.questions[0].original_text,
+            "Kayıtta kimler konuşmaktadır?"
+        );
         assert_eq!(a.questions[1].ordinal, 2);
         assert!(a.questions[1].original_text.contains("tarih ve tutarlar"));
         assert_eq!(a.questions[2].ordinal, 3);
@@ -668,7 +712,11 @@ Bilirkişiye Sorulan Sorular:
     fn field_sources_are_recorded() {
         let a = parse_assignment_text(&sample_extracted());
         assert!(a.field_sources.iter().any(|f| f.field == "case_number"));
-        let fs = a.field_sources.iter().find(|f| f.field == "case_number").unwrap();
+        let fs = a
+            .field_sources
+            .iter()
+            .find(|f| f.field == "case_number")
+            .unwrap();
         assert_eq!(fs.page, 1);
         assert!(fs.excerpt.contains("2024/123"));
     }

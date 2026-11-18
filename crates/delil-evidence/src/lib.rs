@@ -90,9 +90,7 @@ pub fn resolve_source_ambiguity(
     match candidates.len() {
         0 => Err(AmbiguityError::NoCandidate),
         1 => Ok(candidates[0]),
-        _ => Err(AmbiguityError::MultipleCandidates(
-            candidates.len(),
-        )),
+        _ => Err(AmbiguityError::MultipleCandidates(candidates.len())),
     }
 }
 
@@ -284,9 +282,7 @@ pub fn list_files(root: &Path) -> Result<Vec<PathBuf>, EvidenceError> {
     }
     let mut files = Vec::new();
     for entry in WalkDir::new(root).follow_links(false).into_iter() {
-        let entry = entry.map_err(|e| {
-            EvidenceError::Io(std::io::Error::other(e.to_string()))
-        })?;
+        let entry = entry.map_err(|e| EvidenceError::Io(std::io::Error::other(e.to_string())))?;
         if entry.file_type().is_file() {
             files.push(entry.path().to_path_buf());
         }
@@ -344,15 +340,14 @@ pub fn acquire_files(
         };
         let target = target_root.join(&target_rel);
         if let Some(p) = target.parent() {
-            std::fs::create_dir_all(p)
-                .map_err(|e| EvidenceError::TargetDir(e.to_string()))?;
+            std::fs::create_dir_all(p).map_err(|e| EvidenceError::TargetDir(e.to_string()))?;
         }
 
         let size = std::fs::metadata(src).map(|m| m.len()).unwrap_or(0);
 
         // Kaynak hash'i.
-        let source_sha = delil_hash::sha256_file(src)
-            .map_err(|e| EvidenceError::Copy(e.to_string()))?;
+        let source_sha =
+            delil_hash::sha256_file(src).map_err(|e| EvidenceError::Copy(e.to_string()))?;
 
         // Kopyala (kesintiye dayanıklı: geçici dosyaya yazıp taşı).
         let tmp = target.with_extension("delilpart");
@@ -360,8 +355,8 @@ pub fn acquire_files(
         std::fs::rename(&tmp, &target)?;
 
         // Hedefi yeniden okuyup doğrula.
-        let target_sha = delil_hash::sha256_file(&target)
-            .map_err(|e| EvidenceError::Copy(e.to_string()))?;
+        let target_sha =
+            delil_hash::sha256_file(&target).map_err(|e| EvidenceError::Copy(e.to_string()))?;
         let verification = if source_sha == target_sha {
             VerificationStatus::Verified
         } else {
@@ -371,7 +366,9 @@ pub fn acquire_files(
         // Yinelenen dosya tespiti (aynı hash).
         let duplicate_of = hash_index.get(&source_sha).cloned();
         let id = MaterialId::new();
-        hash_index.entry(source_sha.clone()).or_insert_with(|| id.clone());
+        hash_index
+            .entry(source_sha.clone())
+            .or_insert_with(|| id.clone());
 
         let mut warnings = Vec::new();
         if verification == VerificationStatus::Mismatch {
@@ -457,10 +454,7 @@ pub fn available_space(path: &Path) -> Result<u64, EvidenceError> {
 
 /// Edinilmiş materyaller içinden ses dosyalarını içerik tabanlı algılar ve
 /// teknik envanteri çıkarır (şartname 7).
-pub fn build_audio_inventory(
-    materials: &[Material],
-    materials_root: &Path,
-) -> Vec<AudioAsset> {
+pub fn build_audio_inventory(materials: &[Material], materials_root: &Path) -> Vec<AudioAsset> {
     let mut assets = Vec::new();
     for m in materials {
         let path = materials_root.join(&m.stored_relative_path);
@@ -501,8 +495,7 @@ pub fn build_audio_inventory(
                         },
                         queued: false,
                         unsupported_reason: Some(
-                            "Dosya ses uzantılı ancak içeriği ses biçimi olarak tanınamadı."
-                                .into(),
+                            "Dosya ses uzantılı ancak içeriği ses biçimi olarak tanınamadı.".into(),
                         ),
                     });
                 }
@@ -661,7 +654,11 @@ mod tests {
         let source = dummy_source(&src);
         let mats = acquire_files(&src, &source, &target, &AcquireOptions::default(), None).unwrap();
         let assets = build_audio_inventory(&mats, &target);
-        assert_eq!(assets.len(), 1, "içerik tabanlı algılama uzantıya güvenmemeli");
+        assert_eq!(
+            assets.len(),
+            1,
+            "içerik tabanlı algılama uzantıya güvenmemeli"
+        );
         assert_eq!(assets[0].technical.container, "WAV");
     }
 

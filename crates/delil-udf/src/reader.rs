@@ -74,6 +74,57 @@ impl UdfDocument {
     pub fn contains_text(&self, needle: &str) -> bool {
         self.pool.contains(needle)
     }
+
+    /// Belgede metin arar; eşleşen blokların bağlamını döndürür
+    /// (şartname 12.2: UDF metnini arayabilme).
+    ///
+    /// Arama büyük/küçük harf duyarsızdır ve Türkçe karakterleri dikkate alır.
+    pub fn search(&self, needle: &str) -> Vec<SearchHit> {
+        if needle.trim().is_empty() {
+            return Vec::new();
+        }
+        let lower = needle.to_lowercase();
+        let mut hits = Vec::new();
+        for (bi, b) in self.blocks.iter().enumerate() {
+            match b {
+                ParsedBlock::Paragraph { text, .. } => {
+                    if text.to_lowercase().contains(&lower) {
+                        hits.push(SearchHit {
+                            block_index: bi,
+                            kind: "paragraph".to_string(),
+                            context: text.clone(),
+                        });
+                    }
+                }
+                ParsedBlock::Table { rows, .. } => {
+                    for (ri, row) in rows.iter().enumerate() {
+                        for (ci, cell) in row.iter().enumerate() {
+                            if cell.to_lowercase().contains(&lower) {
+                                hits.push(SearchHit {
+                                    block_index: bi,
+                                    kind: format!("table[{ri}][{ci}]"),
+                                    context: cell.clone(),
+                                });
+                            }
+                        }
+                    }
+                }
+                ParsedBlock::PageBreak => {}
+            }
+        }
+        hits
+    }
+}
+
+/// Arama sonucu.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchHit {
+    /// Eşleşen blok sırası.
+    pub block_index: usize,
+    /// Blok türü/açıklaması.
+    pub kind: String,
+    /// Eşleşen metnin bağlamı.
+    pub context: String,
 }
 
 fn slice_pool(chars: &[char], start: usize, len: usize) -> String {
@@ -301,9 +352,10 @@ impl ParseState {
                 }
             }
             "cell" => {
-                if let (Some(cell), Some(row)) =
-                    (self.table.current_cell.take(), self.table.current_row.as_mut())
-                {
+                if let (Some(cell), Some(row)) = (
+                    self.table.current_cell.take(),
+                    self.table.current_row.as_mut(),
+                ) {
                     row.push(cell);
                 }
             }
@@ -486,6 +538,28 @@ mod tests {
         z.write_all(b"x").unwrap();
         z.finish().unwrap();
         assert!(matches!(read_udf(&path), Err(UdfError::MissingContent)));
+    }
+
+    #[test]
+    fn search_finds_text_in_paragraphs_and_tables() {
+        let mut doc = Doc::default();
+        doc.push_paragraph(Paragraph::text("Dosya No: 2024/123 Esas"));
+        doc.push_table(Table::new(
+            vec![100.0, 100.0],
+            vec![TableRow::new(vec![
+                TableCell::text("kayit.wav"),
+                TableCell::text("2024/123"),
+            ])],
+        ));
+        let xml = document_to_content_xml(&doc);
+        let parsed = parse_content_xml(xml.as_bytes()).unwrap();
+        let hits = parsed.search("2024/123");
+        assert!(hits.len() >= 2, "hem paragrafta hem tabloda bulunmalı");
+        assert!(hits.iter().any(|h| h.kind.starts_with("table")));
+        // Büyük/küçük harf duyarsız.
+        assert!(!parsed.search("dosya no").is_empty());
+        assert!(parsed.search("bulunmayan-metin-xyz").is_empty());
+        assert!(parsed.search("").is_empty());
     }
 
     #[test]

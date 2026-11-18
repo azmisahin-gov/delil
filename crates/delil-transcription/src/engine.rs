@@ -199,10 +199,7 @@ pub fn detect_silences(samples: &[f32], window_seconds: f64, threshold: f32) -> 
                 start = Some(i);
             }
         } else if let Some(s) = start.take() {
-            silences.push((
-                s as f64 / SAMPLE_RATE as f64,
-                i as f64 / SAMPLE_RATE as f64,
-            ));
+            silences.push((s as f64 / SAMPLE_RATE as f64, i as f64 / SAMPLE_RATE as f64));
         }
         i += win;
     }
@@ -230,9 +227,7 @@ mod tests {
 
     #[test]
     fn signal_stats_of_tone() {
-        let samples: Vec<f32> = (0..16000)
-            .map(|i| (i as f32 * 0.1).sin() * 0.5)
-            .collect();
+        let samples: Vec<f32> = (0..16000).map(|i| (i as f32 * 0.1).sin() * 0.5).collect();
         let s = analyze_signal(&samples);
         assert!(s.rms > 0.3);
         assert!(s.peak > 0.4);

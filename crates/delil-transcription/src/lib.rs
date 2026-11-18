@@ -115,9 +115,12 @@ pub fn decode_wav_pcm(path: &std::path::Path) -> Result<Vec<f32>> {
     let mut data: Option<&[u8]> = None;
     while pos + 8 <= bytes.len() {
         let id = &bytes[pos..pos + 4];
-        let size =
-            u32::from_le_bytes([bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]])
-                as usize;
+        let size = u32::from_le_bytes([
+            bytes[pos + 4],
+            bytes[pos + 5],
+            bytes[pos + 6],
+            bytes[pos + 7],
+        ]) as usize;
         let body = pos + 8;
         if body + size > bytes.len() {
             break;
@@ -142,10 +145,10 @@ pub fn decode_wav_pcm(path: &std::path::Path) -> Result<Vec<f32>> {
         }
         pos = body + size + (size & 1);
     }
-    let (format, channels, rate, bits) = fmt.ok_or_else(|| {
-        TranscriptionError::Decode("WAV fmt chunk bulunamadı".into())
-    })?;
-    let data = data.ok_or_else(|| TranscriptionError::Decode("WAV data chunk bulunamadı".into()))?;
+    let (format, channels, rate, bits) =
+        fmt.ok_or_else(|| TranscriptionError::Decode("WAV fmt chunk bulunamadı".into()))?;
+    let data =
+        data.ok_or_else(|| TranscriptionError::Decode("WAV data chunk bulunamadı".into()))?;
     if channels == 0 || rate == 0 {
         return Err(TranscriptionError::Decode("geçersiz WAV başlığı".into()));
     }
@@ -183,12 +186,7 @@ pub fn decode_wav_pcm(path: &std::path::Path) -> Result<Vec<f32>> {
                 let mut acc = 0f32;
                 for c in 0..ch {
                     let i = (f * ch + c) * 4;
-                    let s = i32::from_le_bytes([
-                        data[i],
-                        data[i + 1],
-                        data[i + 2],
-                        data[i + 3],
-                    ]);
+                    let s = i32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
                     acc += s as f32 / 2147483648.0;
                 }
                 mono.push(acc / ch as f32);
@@ -200,12 +198,7 @@ pub fn decode_wav_pcm(path: &std::path::Path) -> Result<Vec<f32>> {
                 let mut acc = 0f32;
                 for c in 0..ch {
                     let i = (f * ch + c) * 4;
-                    acc += f32::from_le_bytes([
-                        data[i],
-                        data[i + 1],
-                        data[i + 2],
-                        data[i + 3],
-                    ]);
+                    acc += f32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
                 }
                 mono.push(acc / ch as f32);
             }
@@ -248,10 +241,12 @@ pub fn resample_linear(input: &[f32], from: u32, to: u32) -> Vec<f32> {
 ///
 /// Uzun kayıtlar 30 saniyelik parçalara ayrılır; parça sınırında cümle/kelime
 /// kaybı olmaması için segmentler birleştirilirken metin kırpılmaz.
-pub fn merge_segments(
-    mut segments: Vec<EngineSegment>,
-) -> Vec<EngineSegment> {
-    segments.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
+pub fn merge_segments(mut segments: Vec<EngineSegment>) -> Vec<EngineSegment> {
+    segments.sort_by(|a, b| {
+        a.start
+            .partial_cmp(&b.start)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     segments
 }
 

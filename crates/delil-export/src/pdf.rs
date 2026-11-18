@@ -32,7 +32,8 @@ const FONT_BOLD: &[u8] = include_bytes!("../../delil-export/assets/DejaVuSerif-B
 
 /// Raporu PDF olarak yazar.
 pub fn export_pdf(report: &Report, path: &Path) -> Result<(), ExportError> {
-    let (doc, page1, layer1) = PdfDocument::new(&report.cover_title, Mm(210.0), Mm(297.0), "Katman 1");
+    let (doc, page1, layer1) =
+        PdfDocument::new(&report.cover_title, Mm(210.0), Mm(297.0), "Katman 1");
     let font = doc
         .add_external_font(std::io::Cursor::new(FONT_BYTES))
         .map_err(|e| ExportError::Pdf(e.to_string()))?;
@@ -79,14 +80,20 @@ pub fn render_report_lines(report: &Report) -> Vec<(String, bool, f32)> {
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "1-3. Görevlendiren merci / dosya numarası");
-    push_t(&mut out, &format!(
-        "Merci: {}",
-        report.authority.as_deref().unwrap_or("(belirtilmemiş)")
-    ));
-    push_t(&mut out, &format!(
-        "Dosya No: {}",
-        report.case_number.as_deref().unwrap_or("(belirtilmemiş)")
-    ));
+    push_t(
+        &mut out,
+        &format!(
+            "Merci: {}",
+            report.authority.as_deref().unwrap_or("(belirtilmemiş)")
+        ),
+    );
+    push_t(
+        &mut out,
+        &format!(
+            "Dosya No: {}",
+            report.case_number.as_deref().unwrap_or("(belirtilmemiş)")
+        ),
+    );
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "4. Taraflar");
@@ -96,58 +103,94 @@ pub fn render_report_lines(report: &Report) -> Vec<(String, bool, f32)> {
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "5. Bilirkişi bilgileri");
-    push_t(&mut out, &format!(
-        "Ad Soyad: {}",
-        report.expert.full_name.as_deref().unwrap_or("(belirtilmemiş)")
-    ));
-    push_t(&mut out, &format!(
-        "Unvan: {}",
-        report.expert.title.as_deref().unwrap_or("(belirtilmemiş)")
-    ));
-    push_t(&mut out, &format!(
-        "Sicil No: {}",
-        report.expert.registry_number.as_deref().unwrap_or("(belirtilmemiş)")
-    ));
+    push_t(
+        &mut out,
+        &format!(
+            "Ad Soyad: {}",
+            report
+                .expert
+                .full_name
+                .as_deref()
+                .unwrap_or("(belirtilmemiş)")
+        ),
+    );
+    push_t(
+        &mut out,
+        &format!(
+            "Unvan: {}",
+            report.expert.title.as_deref().unwrap_or("(belirtilmemiş)")
+        ),
+    );
+    push_t(
+        &mut out,
+        &format!(
+            "Sicil No: {}",
+            report
+                .expert
+                .registry_number
+                .as_deref()
+                .unwrap_or("(belirtilmemiş)")
+        ),
+    );
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "6. Görevlendirme tarihi ve süresi");
-    push_t(&mut out, &format!(
-        "Görevlendirme: {}",
-        report.assignment_date_text.as_deref().unwrap_or("-")
-    ));
-    push_t(&mut out, &format!(
-        "Teslim süresi: {}",
-        report.due_date_text.as_deref().unwrap_or("-")
-    ));
+    push_t(
+        &mut out,
+        &format!(
+            "Görevlendirme: {}",
+            report.assignment_date_text.as_deref().unwrap_or("-")
+        ),
+    );
+    push_t(
+        &mut out,
+        &format!(
+            "Teslim süresi: {}",
+            report.due_date_text.as_deref().unwrap_or("-")
+        ),
+    );
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "7. İnceleme konusu");
-    push_t(&mut out, report.subject.as_deref().unwrap_or("(belirtilmemiş)"));
+    push_t(
+        &mut out,
+        report.subject.as_deref().unwrap_or("(belirtilmemiş)"),
+    );
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "8. Bilirkişiye yöneltilen sorular ve yanıtlar");
     for q in &report.questions {
-        out.push((format!("{}. {}", q.ordinal, q.original_text), true, FONT_SIZE));
+        out.push((
+            format!("{}. {}", q.ordinal, q.original_text),
+            true,
+            FONT_SIZE,
+        ));
         let ans = q.expert_answer.as_deref().unwrap_or("(yanıtlanmadı)");
         push_t(&mut out, &format!("Yanıt: {ans}"));
         for ev in &q.evidence_references {
-            push_t(&mut out, &format!(
-                "Dayanak: “{}” ({:.1}s–{:.1}s)",
-                ev.quote, ev.start_seconds, ev.end_seconds
-            ));
+            push_t(
+                &mut out,
+                &format!(
+                    "Dayanak: “{}” ({:.1}s–{:.1}s)",
+                    ev.quote, ev.start_seconds, ev.end_seconds
+                ),
+            );
         }
     }
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "9-10. İncelenen materyaller ve edinim açıklaması");
     for m in &report.materials {
-        push_t(&mut out, &format!(
-            "{} — {} bayt — {} — SHA-256: {}",
-            m.file_name,
-            m.size_bytes,
-            m.verification.label_tr(),
-            m.target_sha256.as_deref().unwrap_or("-")
-        ));
+        push_t(
+            &mut out,
+            &format!(
+                "{} — {} bayt — {} — SHA-256: {}",
+                m.file_name,
+                m.size_bytes,
+                m.verification.label_tr(),
+                m.target_sha256.as_deref().unwrap_or("-")
+            ),
+        );
     }
     push_t(&mut out, &report.acquisition_note);
     out.push((String::new(), false, FONT_SIZE));
@@ -156,29 +199,44 @@ pub fn render_report_lines(report: &Report) -> Vec<(String, bool, f32)> {
     push_t(&mut out, &report.method);
     out.push((String::new(), false, FONT_SIZE));
 
-    push_h(&mut out, "12-13. Kullanılan yazılım ve transkripsiyon yöntemi");
-    push_t(&mut out, &format!(
-        "{} {} — model: {} ({})",
-        report.software.app_name,
-        report.software.app_version,
-        report.software.model_name,
-        report.software.model_version
-    ));
+    push_h(
+        &mut out,
+        "12-13. Kullanılan yazılım ve transkripsiyon yöntemi",
+    );
+    push_t(
+        &mut out,
+        &format!(
+            "{} {} — model: {} ({})",
+            report.software.app_name,
+            report.software.app_version,
+            report.software.model_name,
+            report.software.model_version
+        ),
+    );
     push_t(&mut out, &report.transcription_method);
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "14. Teknik ses envanteri");
     for a in &report.audio_inventory {
-        push_t(&mut out, &format!(
-            "{} — {} / {} — {:.1}s — {} Hz — {} kanal — SHA-256: {}",
-            a.file_name,
-            a.technical.container,
-            a.technical.codec,
-            a.technical.duration_seconds,
-            a.technical.sample_rate_hz.map(|v| v.to_string()).unwrap_or_default(),
-            a.technical.channels.map(|v| v.to_string()).unwrap_or_default(),
-            a.sha256.as_deref().unwrap_or("-")
-        ));
+        push_t(
+            &mut out,
+            &format!(
+                "{} — {} / {} — {:.1}s — {} Hz — {} kanal — SHA-256: {}",
+                a.file_name,
+                a.technical.container,
+                a.technical.codec,
+                a.technical.duration_seconds,
+                a.technical
+                    .sample_rate_hz
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                a.technical
+                    .channels
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                a.sha256.as_deref().unwrap_or("-")
+            ),
+        );
     }
     out.push((String::new(), false, FONT_SIZE));
 
@@ -186,10 +244,10 @@ pub fn render_report_lines(report: &Report) -> Vec<(String, bool, f32)> {
     for t_ in &report.transcripts {
         for s in &t_.current().segments {
             if report.include_timestamps {
-                push_t(&mut out, &format!(
-                    "[{:.1}s-{:.1}s] {}",
-                    s.start_seconds, s.end_seconds, s.text
-                ));
+                push_t(
+                    &mut out,
+                    &format!("[{:.1}s-{:.1}s] {}", s.start_seconds, s.end_seconds, s.text),
+                );
             } else {
                 push_t(&mut out, &s.text);
             }
@@ -214,21 +272,30 @@ pub fn render_report_lines(report: &Report) -> Vec<(String, bool, f32)> {
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "21. Gerekçeli sonuç");
-    push_t(&mut out, report
-        .reasoned_conclusion
-        .as_deref()
-        .unwrap_or("(bilirkişi tarafından doldurulacak)"));
+    push_t(
+        &mut out,
+        report
+            .reasoned_conclusion
+            .as_deref()
+            .unwrap_or("(bilirkişi tarafından doldurulacak)"),
+    );
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "22-23. Rapor tarihi ve imza");
-    push_t(&mut out, &format!("Rapor tarihi: {}", report.report_date.format("%d.%m.%Y")));
+    push_t(
+        &mut out,
+        &format!("Rapor tarihi: {}", report.report_date.format("%d.%m.%Y")),
+    );
     push_t(&mut out, &report.signature_block.expert_line);
     push_t(&mut out, &report.signature_block.note);
     out.push((String::new(), false, FONT_SIZE));
 
     push_h(&mut out, "24. Ekler");
     for att in &report.attachments {
-        push_t(&mut out, &format!("EK-{}: {} ({})", att.number, att.title, att.kind.label_tr()));
+        push_t(
+            &mut out,
+            &format!("EK-{}: {} ({})", att.number, att.title, att.kind.label_tr()),
+        );
     }
 
     out
@@ -292,7 +359,11 @@ mod tests {
     fn render_includes_all_sections() {
         let r = sample_report();
         let lines = render_report_lines(&r);
-        let joined = lines.iter().map(|(s, _, _)| s.as_str()).collect::<Vec<_>>().join("\n");
+        let joined = lines
+            .iter()
+            .map(|(s, _, _)| s.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(joined.contains("BİLİRKİŞİ RAPORU"));
         assert!(joined.contains("2024/1"));
         assert!(joined.contains("Ne konuşuluyor?"));

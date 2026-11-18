@@ -135,15 +135,13 @@ fn full_acceptance_scenario() {
     // anahtar üretilir; meta veri yedeğin dışındaki vaka dosyasıyla birlikte
     // taşınır. Burada asıl doğrulanan dosya bütünlüğüdür.
     let _ = rkey;
-    let orig_material = std::fs::read(
-        case_root
-            .join("materials")
-            .join("kayit_01.wav"),
-    )
-    .unwrap();
+    let orig_material = std::fs::read(case_root.join("materials").join("kayit_01.wav")).unwrap();
     let restored_material =
         std::fs::read(restore_dir.join("materials").join("kayit_01.wav")).unwrap();
-    assert_eq!(orig_material, restored_material, "geri yüklenen içerik aynı olmalı");
+    assert_eq!(
+        orig_material, restored_material,
+        "geri yüklenen içerik aynı olmalı"
+    );
 }
 
 #[test]

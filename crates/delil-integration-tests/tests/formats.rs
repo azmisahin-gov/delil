@@ -55,13 +55,34 @@ fn all_wav_variants_open_and_report_duration() {
 fn container_detection_covers_documented_formats() {
     // İmza tabanlı algılama; her biçim için minimal başlık (en az 12 bayt).
     let cases: Vec<(Vec<u8>, delil_audio::Container)> = vec![
-        (b"RIFF\0\0\0\0WAVEfmt \0\0\0\0".to_vec(), delil_audio::Container::Wav),
-        (b"fLaC\0\0\0\0\0\0\0\0".to_vec(), delil_audio::Container::Flac),
-        (b"OggS\0\0\0\0\0\0\0\0\0\0\0\0".to_vec(), delil_audio::Container::Ogg),
-        (b"caff\0\0\0\0\0\0\0\0\0\0\0\0".to_vec(), delil_audio::Container::Caf),
-        (b"ID3\x04\0\0\0\0\0\0\0\0\0\0".to_vec(), delil_audio::Container::Mp3),
-        (b"#!AMR\x00\x00\x00\x00\x00\x00\x00\x00\x00".to_vec(), delil_audio::Container::Amr),
-        (b"FORM\0\0\0\0AIFF\0\0\0\0".to_vec(), delil_audio::Container::Aiff),
+        (
+            b"RIFF\0\0\0\0WAVEfmt \0\0\0\0".to_vec(),
+            delil_audio::Container::Wav,
+        ),
+        (
+            b"fLaC\0\0\0\0\0\0\0\0".to_vec(),
+            delil_audio::Container::Flac,
+        ),
+        (
+            b"OggS\0\0\0\0\0\0\0\0\0\0\0\0".to_vec(),
+            delil_audio::Container::Ogg,
+        ),
+        (
+            b"caff\0\0\0\0\0\0\0\0\0\0\0\0".to_vec(),
+            delil_audio::Container::Caf,
+        ),
+        (
+            b"ID3\x04\0\0\0\0\0\0\0\0\0\0".to_vec(),
+            delil_audio::Container::Mp3,
+        ),
+        (
+            b"#!AMR\x00\x00\x00\x00\x00\x00\x00\x00\x00".to_vec(),
+            delil_audio::Container::Amr,
+        ),
+        (
+            b"FORM\0\0\0\0AIFF\0\0\0\0".to_vec(),
+            delil_audio::Container::Aiff,
+        ),
     ];
     for (bytes, expected) in cases {
         assert_eq!(
@@ -93,7 +114,9 @@ fn udf_full_roundtrip_with_tables_and_turkish() {
 
     let mut doc = UdfDocument::default();
     doc.push_paragraph(Paragraph::with_run(
-        TextRun::new("BİLİRKİŞİ RAPORU — Türkçe: ıİşŞğĞüÜöÖçÇ").bold().size(14.0),
+        TextRun::new("BİLİRKİŞİ RAPORU — Türkçe: ıİşŞğĞüÜöÖçÇ")
+            .bold()
+            .size(14.0),
     ));
     doc.push_paragraph(Paragraph::text("Gövde metni: 12.05.2024 tarihli 5000 TL."));
     doc.push_table(Table::new(
