@@ -13,7 +13,7 @@ Son güncelleme: 2026-11-18 (delil-implementation dalı)
 | Ölçüm | Değer |
 |---|---|
 | Komut | `cargo test --workspace --no-fail-fast` |
-| **Geçen test** | **227** |
+| **Geçen test** | **230** |
 | Başarısız test | 0 |
 | Sonuç | `EXIT:0` |
 
@@ -228,7 +228,7 @@ gerçek ölçüm, large-v3-turbo modeli ve test seti sağlandığında yapılır
 
 | # | Test kategorisi | Ortam | Durum |
 |---|---|---|---|
-| 1 | Linux birim + entegrasyon (227 test) | Bu ortam | ✅ Geçti |
+| 1 | Linux birim + entegrasyon (230 test) | Bu ortam | ✅ Geçti |
 | 2 | Ağır özellik derlemeleri | Bu ortam | ✅ Geçti |
 | 3 | Gerçek Whisper transkripsiyon (tiny) | Bu ortam | ✅ Geçti |
 | 4 | Windows 11 x64 testleri | GH Actions | ⏳ CI'da |

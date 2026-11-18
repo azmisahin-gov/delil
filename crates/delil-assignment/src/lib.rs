@@ -323,6 +323,29 @@ pub fn parse_assignment_text(text: &ExtractedText) -> Assignment {
         }
     }
 
+    // Etiket bulunamadıysa UYAP/standart kalıp sezgileriyle ara: gerçek
+    // belgelerde dosya numarası ve mahkeme sıkça etiketsizdir.
+    if a.case_number.is_none() {
+        if let Some((cn, page, excerpt)) = find_case_number(&full, text) {
+            a.case_number = Some(cn);
+            a.field_sources.push(FieldSource {
+                field: "case_number".into(),
+                page,
+                excerpt,
+            });
+        }
+    }
+    if a.court.is_none() {
+        if let Some((c, page, excerpt)) = find_court(&full, text) {
+            a.court = Some(c);
+            a.field_sources.push(FieldSource {
+                field: "court".into(),
+                page,
+                excerpt,
+            });
+        }
+    }
+
     // Sorular: numaralı satırlar ve soru işaretli satırlar.
     a.questions = extract_questions(&full, text);
     // Bilirkişiden istenen işlemler.
@@ -369,6 +392,103 @@ impl LabelTarget {
             LabelTarget::ExpertRegistry => "expert_registry",
         }
     }
+}
+
+/// Gerçek UYAP belgelerinde dosya numarası çoğu zaman etiketsizdir; örneğin
+/// başlıkta "2024/123 Esas" veya "2024/123 E." biçiminde geçer. Bu işlev
+/// etiket olmadan da dosya numarasını bulur.
+pub fn find_case_number(full: &str, text: &ExtractedText) -> Option<(String, u32, String)> {
+    for (page_idx, page) in text.pages.iter().enumerate() {
+        for line in page.lines() {
+            if let Some(cn) = extract_case_number_token(line) {
+                return Some((cn, (page_idx + 1) as u32, line.trim().to_string()));
+            }
+        }
+    }
+    // Sayfa ayrımı yoksa tüm metinde ara.
+    if text.pages.len() == 1 {
+        for line in full.lines() {
+            if let Some(cn) = extract_case_number_token(line) {
+                return Some((cn, 1, line.trim().to_string()));
+            }
+        }
+    }
+    None
+}
+
+/// Bir satırdan "YYYY/NNN" (+ Esas/E.) kalıbını çıkarır.
+fn extract_case_number_token(line: &str) -> Option<String> {
+    let lower = line.to_lowercase();
+    // "dosya no", "esas no" etiketli satırlar burada işlenmez (etiket yolu var).
+    // Yıl/sayı kalıbı ara: 4 hane / 1+ hane.
+    let chars: Vec<char> = line.chars().collect();
+    let mut i = 0;
+    while i + 4 <= chars.len() {
+        // 4 haneli yıl mı?
+        if chars[i..i + 4].iter().all(|c| c.is_ascii_digit()) {
+            // Ardından '/' gelmeli.
+            if chars.get(i + 4) == Some(&'/') {
+                let mut j = i + 5;
+                let start = j;
+                while j < chars.len() && chars[j].is_ascii_digit() {
+                    j += 1;
+                }
+                if j > start {
+                    let year: String = chars[i..i + 4].iter().collect();
+                    let num: String = chars[start..j].iter().collect();
+                    // Yıldan önce ve sonra mantıklı sınır olmalı (harf bitişik olmasın).
+                    let before_ok = i == 0 || !chars[i - 1].is_alphanumeric();
+                    let after = chars.get(j).copied().unwrap_or(' ');
+                    let after_ok = !after.is_alphanumeric() || after == ' ';
+                    if before_ok && after_ok {
+                        let suffix = if lower.contains("esas") { " Esas" } else { "" };
+                        return Some(format!("{year}/{num}{suffix}"));
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Mahkeme/birim adını etiket olmadan da bulur (ör. "ANKARA 5. ASLİYE CEZA
+/// MAHKEMESİ", "… CUMHURİYET BAŞSAVCILIĞI").
+pub fn find_court(_full: &str, text: &ExtractedText) -> Option<(String, u32, String)> {
+    const KEYS: &[&str] = &[
+        "mahkemesi",
+        "mahkemesİ",
+        "mahkemesi̇",
+        "asliye",
+        "ağır ceza",
+        "sulh",
+        "icra",
+        "başsavcılığı",
+        "başsavciliği",
+        "cumhuriyet savcılığı",
+        "bölge adliye",
+        "bölge idare",
+        "idare mahkemesi",
+        "vergi mahkemesi",
+        "iş mahkemesi",
+        "aile mahkemesi",
+        "tüketici mahkemesi",
+        "fikri",
+        "kadastro",
+    ];
+    for (page_idx, page) in text.pages.iter().enumerate() {
+        for line in page.lines() {
+            let lower = line.to_lowercase();
+            if KEYS.iter().any(|k| lower.contains(k)) && line.trim().chars().count() >= 6 {
+                return Some((
+                    line.trim().to_string(),
+                    (page_idx + 1) as u32,
+                    line.trim().to_string(),
+                ));
+            }
+        }
+    }
+    None
 }
 
 /// "Dosya No: 2024/123" gibi satırlarda etiketten sonraki değeri döndürür.
@@ -761,6 +881,58 @@ Bilirkişiye Sorulan Sorular:
         let a = parse_assignment_text(&sample_extracted());
         // Örnek belgede bilirkişi bilgisi yok.
         assert!(a.expert.full_name.is_none());
+    }
+
+    #[test]
+    fn uyap_style_document_without_labels() {
+        // Gerçek UYAP belgeleri çoğu zaman "Dosya No:" etiketi kullanmaz;
+        // dosya numarası ve mahkeme doğrudan geçer.
+        let text = ExtractedText {
+            pages: vec!["T.C.\nANKARA 5. ASLİYE CEZA MAHKEMESİ\n2024/312 Esas\n\nBilirkişi: Dr. Zeynep Arslan\n\nBilirkişiye Sorulan Sorular:\n1. Kayıtta kimler konuşmaktadır?\n2. Tehdit var mıdır?\n".into()],
+            method: DocumentReadMethod::PdfTextLayer,
+            document_kind: "PDF".into(),
+        };
+        let a = parse_assignment_text(&text);
+        assert_eq!(a.case_number.as_deref(), Some("2024/312 Esas"));
+        assert!(a.court.as_deref().unwrap().contains("ANKARA"));
+        assert_eq!(a.expert.full_name.as_deref(), Some("Dr. Zeynep Arslan"));
+        assert_eq!(a.questions.len(), 2);
+    }
+
+    #[test]
+    fn case_number_token_extraction() {
+        assert_eq!(
+            extract_case_number_token("2024/312 Esas"),
+            Some("2024/312 Esas".into())
+        );
+        assert_eq!(
+            extract_case_number_token("Dosya: 2024/312"),
+            Some("2024/312".into())
+        );
+        // Geçersiz kalıplar.
+        assert_eq!(extract_case_number_token("12/34"), None);
+        assert_eq!(extract_case_number_token("saat 12:30"), None);
+        // Yıl gibi görünen ama dosya no olmayan.
+        assert_eq!(extract_case_number_token("2024 yılında"), None);
+    }
+
+    #[test]
+    fn questions_extracted_without_heading_variants() {
+        // Farklı başlık yazımları da çalışmalı.
+        for heading in [
+            "Bilirkişiye Sorulan Sorular:",
+            "SORULAR:",
+            "Bilirkişiden İstenen Sorular:",
+            "Sorular;",
+        ] {
+            let text = ExtractedText {
+                pages: vec![format!("{heading}\n1. Birinci soru?\n2. İkinci soru?\n")],
+                method: DocumentReadMethod::PdfTextLayer,
+                document_kind: "PDF".into(),
+            };
+            let a = parse_assignment_text(&text);
+            assert_eq!(a.questions.len(), 2, "başlık: {heading}");
+        }
     }
 
     #[test]

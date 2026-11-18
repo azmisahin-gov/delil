@@ -1426,7 +1426,7 @@ checksum = "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f"
 
 [[package]]
 name = "delil-app"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "delil-assignment",
@@ -1445,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "delil-assignment"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "delil-core",
@@ -1463,7 +1463,7 @@ dependencies = [
 
 [[package]]
 name = "delil-audio"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "delil-core",
  "rodio",
@@ -1475,7 +1475,7 @@ dependencies = [
 
 [[package]]
 name = "delil-case-store"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1497,7 +1497,7 @@ dependencies = [
 
 [[package]]
 name = "delil-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1514,7 +1514,7 @@ dependencies = [
 
 [[package]]
 name = "delil-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "serde",
@@ -1525,7 +1525,7 @@ dependencies = [
 
 [[package]]
 name = "delil-evidence"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "delil-audio",
@@ -1543,7 +1543,7 @@ dependencies = [
 
 [[package]]
 name = "delil-export"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "delil-core",
@@ -1556,7 +1556,7 @@ dependencies = [
 
 [[package]]
 name = "delil-hash"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "delil-core",
  "hex",
@@ -1568,7 +1568,7 @@ dependencies = [
 
 [[package]]
 name = "delil-integration-tests"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "delil-assignment",
@@ -1593,7 +1593,7 @@ dependencies = [
 
 [[package]]
 name = "delil-pipeline"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "delil-assignment",
@@ -1616,7 +1616,7 @@ dependencies = [
 
 [[package]]
 name = "delil-quality"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "delil-core",
  "serde",
@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "delil-report"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "delil-core",
@@ -1636,7 +1636,7 @@ dependencies = [
 
 [[package]]
 name = "delil-transcription"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -1654,7 +1654,7 @@ dependencies = [
 
 [[package]]
 name = "delil-udf"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "quick-xml 0.36.2",
@@ -1666,7 +1666,7 @@ dependencies = [
 
 [[package]]
 name = "delil-update"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "chrono",
