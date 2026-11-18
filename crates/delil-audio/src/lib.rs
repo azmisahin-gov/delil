@@ -12,8 +12,14 @@ use delil_core::AudioTechnicalInfo;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub mod waveform;
+
 #[cfg(feature = "symphonia")]
 pub mod decode;
+
+pub use waveform::{
+    ChannelSelection, Marker, PlaybackRate, PlaybackState, Waveform,
+};
 
 /// Algılama ve envanter hataları.
 #[derive(Debug, Error)]

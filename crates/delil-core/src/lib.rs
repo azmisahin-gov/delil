@@ -17,10 +17,12 @@ use uuid::Uuid;
 pub mod ids;
 pub mod model;
 pub mod status;
+pub mod transcript_edit;
 
 pub use ids::*;
 pub use model::*;
 pub use status::*;
+pub use transcript_edit::*;
 
 /// Yeni bir sürüm kimliği üretir.
 pub fn new_id() -> String {
