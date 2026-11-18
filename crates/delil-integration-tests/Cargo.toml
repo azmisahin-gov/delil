@@ -1,0 +1,34 @@
+[package]
+name = "delil-integration-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "DELİL uçtan uca ve entegrasyon testleri"
+publish = false
+
+[lib]
+name = "delil_integration_tests"
+path = "src/lib.rs"
+
+[dependencies]
+delil-core = { workspace = true }
+delil-hash = { workspace = true }
+delil-udf = { workspace = true }
+delil-audio = { workspace = true }
+delil-evidence = { workspace = true }
+delil-assignment = { workspace = true }
+delil-transcription = { workspace = true }
+delil-quality = { workspace = true }
+delil-report = { workspace = true }
+delil-export = { workspace = true }
+delil-case-store = { workspace = true }
+delil-update = { workspace = true, features = ["dev-sign"] }
+delil-pipeline = { workspace = true }
+chrono = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }

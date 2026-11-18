@@ -16,6 +16,7 @@ members = [
     "crates/delil-pipeline",
     "crates/delil-cli",
     "crates/delil-app",
+    "crates/delil-integration-tests",
 ]
 
 [workspace.package]

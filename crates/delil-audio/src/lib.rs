@@ -151,7 +151,9 @@ pub fn detect_container(bytes: &[u8]) -> Option<Container> {
     if &b[4..8] == b"ftyp" {
         let brand = &b[8..12];
         return Some(match brand {
-            b"M4A " | b"M4B " | b"mp42" | b"isom" | b"iso2" => Container::M4a,
+            // Yalnızca gerçek ses kapsayıcı markaları ses sayılır; `isom`,
+            // `mp42` gibi genel ISO-BMFF markaları video kapsayıcıdır.
+            b"M4A " | b"M4B " => Container::M4a,
             b"qt  " => Container::Mov,
             _ => Container::Mp4,
         });

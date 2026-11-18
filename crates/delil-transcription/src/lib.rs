@@ -51,6 +51,30 @@ pub const SAMPLE_RATE: usize = 16_000;
 /// Bir parçanın azami süresi (saniye) — modelin 30 saniyelik penceresi.
 pub const CHUNK_SECONDS: usize = 30;
 
+/// Whisper model dosya adları.
+pub const MODEL_CONFIG_FILE: &str = "config.json";
+pub const MODEL_TOKENIZER_FILE: &str = "tokenizer.json";
+pub const MODEL_WEIGHTS_FILE: &str = "model.safetensors";
+
+/// Model dosyalarının eksiksiz olup olmadığını kontrol eder.
+///
+/// Bu işlev özellik bayrağından bağımsızdır; model dizini verilmediğinde veya
+/// dosyalar eksik olduğunda açık bir hata döndürür. Model **simülasyonu
+/// yapılmaz**.
+pub fn check_model_files(dir: &std::path::Path) -> Result<()> {
+    for f in [MODEL_CONFIG_FILE, MODEL_TOKENIZER_FILE, MODEL_WEIGHTS_FILE] {
+        let p = dir.join(f);
+        if !p.exists() {
+            return Err(TranscriptionError::ModelMissing(format!(
+                "{} bulunamadı ({})",
+                f,
+                p.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Bir ses dosyasını 16 kHz mono f32 örneklemeye çözer.
 ///
 /// Önce yerleşik WAV çözücü denenir (adli ses materyalinde en yaygın biçim).
