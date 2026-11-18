@@ -146,21 +146,25 @@ if ! command -v iscc >/dev/null 2>&1 && ! command -v ISCC.exe >/dev/null 2>&1; t
      CI (choco): choco install innosetup"
 fi
 ISCC_BIN="$(command -v iscc || command -v ISCC.exe)"
-# Git Bash (MSYS2) /D... biçimindeki Inno Setup anahtarlarını Windows yoluna
-# çevirmeye çalışır; bu, "You may not specify more than one script filename"
-# hatasına yol açar. Dönüştürmeyi kapatıyoruz.
-if [ -n "${MSYS:-}" ] || [ -n "${MINGW_PREFIX:-}" ] || [ "${OS:-}" = "Windows_NT" ]; then
-  export MSYS2_ARG_CONV_EXCL='*'
-  export MSYS_NO_PATHCONV=1
-fi
-# Dizin ayraçlarını Windows biçimine çevir (iscc Windows ikilisidir).
-DIST_WIN="$DIST"
-ISS_WIN="$ISS"
-if command -v cygpath >/dev/null 2>&1; then
-  DIST_WIN="$(cygpath -w "$DIST")"
-  ISS_WIN="$(cygpath -w "$ISS")"
-fi
-"$ISCC_BIN" "/DMyAppVersion=$VERSION" "/DMyDistDir=$DIST_WIN" "$ISS_WIN"
+
+# Kabuk yol/argüman dönüşümü sorunlarını tamamen önlemek için sürüm ve dizin
+# bilgilerini bir `.iss` include dosyasına yazıyoruz. Böylece `/D...` komut
+# satırı anahtarlarına gerek kalmaz (Git Bash/MSYS bunları bozabiliyor).
+CONFIG_ISS="$ROOT/packaging/windows/build-config.iss"
+{
+  echo "; Bu dosya scripts/package-windows.sh tarafından üretilir."
+  echo "#define MyAppVersion \"$VERSION\""
+  # Inno Setup Windows yol biçimi bekler; ters bölü kullan.
+  DIST_FOR_ISS="$DIST"
+  if command -v cygpath >/dev/null 2>&1; then
+    DIST_FOR_ISS="$(cygpath -w "$DIST")"
+  fi
+  printf '#define MyDistDir "%s"\n' "$DIST_FOR_ISS"
+} > "$CONFIG_ISS"
+echo "  Yapılandırma: $CONFIG_ISS"
+cat "$CONFIG_ISS"
+
+"$ISCC_BIN" "$(cygpath -w "$ISS" 2>/dev/null || echo "$ISS")"
 
 INSTALLER="$DIST/DELIL-Setup-$VERSION-x64.exe"
 [ -f "$INSTALLER" ] || fail "Kurulum dosyası üretilemedi: $INSTALLER"

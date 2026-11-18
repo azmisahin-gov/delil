@@ -1,11 +1,25 @@
 ; DELİL — Windows 11 x64 kurulum betiği (Inno Setup 6+)
 ;
-; Üretim:
+; Üretim (önerilen):
+;   scripts/package-windows.sh
+;
+; Betik, packaging/windows/build-config.iss dosyasını üretir ve bu dosya
+; MyAppVersion ile MyDistDir değerlerini tanımlar. Böylece komut satırındaki
+; /D... anahtarlarına gerek kalmaz (Git Bash/MSYS bunları bozabiliyor).
+;
+; Doğrudan derleme (Windows'ta):
 ;   iscc /DMyAppVersion=0.1.0 /DMyDistDir=..\..\dist packaging\windows\delil.iss
 ;
 ; Kurulum paketi Whisper ve OCR model dosyalarını İÇERİR; kullanıcıdan ayrıca
 ; indirme veya teknik bağımlılık kurması istenmez.
 
+; scripts/package-windows.sh tarafından üretilen yapılandırma (varsa) ÖNCE
+; okunur; böylece sürüm ve dizin değerleri komut satırı anahtarı olmadan gelir.
+#if FileExists(AddBackslash(SourcePath) + "build-config.iss")
+  #include "build-config.iss"
+#endif
+
+; Sürüm ve dağıtım dizini: yapılandırma yoksa varsayılanlar kullanılır.
 #ifndef MyAppVersion
   #define MyAppVersion "0.1.0"
 #endif
