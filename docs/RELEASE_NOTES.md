@@ -1,22 +1,40 @@
 # DELİL — Sürüm Notları
 
-## DELİL 0.1.0 (Windows 11 x64)
+## DELİL 0.1.1 (Windows 11 x64)
 
 **Delili tak. Sesi çöz. UDF raporunu al.**
 
-DELİL, 56.12 — Ses Kayıtlarının Metin Hâline Dönüştürülmesi uzmanlık alanındaki
-bilirkişiler için geliştirilmiş, tek amaca odaklanmış, yerel ve çevrimdışı bir
-Windows masaüstü uygulamasıdır.
+### Bu sürümde düzeltilenler (0.1.0 → 0.1.1)
 
-### İndirme
+Kritik saha hatası düzeltmesi ve güvenlik iyileştirmeleri:
 
-| Dosya | Açıklama |
-|---|---|
-| `DELIL-Setup-0.1.0-x64.exe` | Windows 11 x64 kurulum dosyası (uygulama + modeller dahil) |
-| `DELIL-Setup-0.1.0-x64.exe.sha256` | Kurulum dosyasının SHA-256 checksum'ı |
-| `MODEL_MANIFEST.json` | Pakete dahil edilen model bileşenlerinin kaynak/sürüm/hash kaydı |
+1. **Çökme hatası giderildi (kritik).** Kaynak materyalde 12–15 baytlık kısa bir
+   dosya bulunduğunda uygulama çöküyordu (içerik algılama kodu, 16 baytlık imza
+   kontrolünü yeterli uzunluk doğrulamadan yapıyordu). Gerçek SD kart
+   kullanımında ortaya çıktı. Artık **panik yapmaz**; kısa/bozuk dosyalar
+   sessizce atlanmaz, uyarı olarak kaydedilir.
+2. **Tek bozuk dosya artık tüm işlemi durdurmuyor.** Her dosya bağımsız
+   değerlendirilir; sorunlu dosyalar uyarı listesine eklenir.
+3. **Güvenlik ağı.** Arka plan işleminde beklenmedik bir hata olsa bile
+   uygulama kapanmaz; kullanıcıya açık hata bildirilir.
+4. **Yazma koruması durumu artık gerçekten ölçülüyor.** Aygıt listesinde her
+   sürücü için salt okunur durumu gösterilir (donanımsal SD kart kilidi veya
+   salt okunur bağlama algılanır). Bu bir iddia değil, ölçümdür; yazılımsal
+   koruma donanımsal yazma engelleyici ile eşdeğer gösterilmez.
 
-### Bu sürümde neler var
+### DELİL kaynak materyale yazar mı?
+
+**Hayır.** DELİL kaynak dosyalara hiçbir koşulda yazmaz, silmez, yeniden
+adlandırmaz veya taşımaz; yalnızca yerel vaka deposuna kopyalar. SD kartın
+kendi yazma kilidi (fiziksel anahtar) takılıysa veya aygıt salt okunur
+bağlanmışsa, uygulama bunu aygıt listesinde "🔒 yazmaya kapalı (salt okunur)"
+olarak gösterir. Kilit yoksa "⚠ yazmaya açık (uygulama yine de yazmaz)" yazar.
+
+Yazılımsal yazma koruması, ilk bağlantı anında donanımsal yazma engelleme ile
+**eşdeğer değildir**; yüksek güvence gereken edinimlerde donanımsal yazma
+engelleyici kullanılması önerilir.
+
+### 0.1.0 sürümünden devralınanlar
 
 **1. DELİLİ AL**
 - Görevlendirme belgesi okuma: PDF (metin katmanı), UDF, DOCX, TXT ve
@@ -28,7 +46,7 @@ Windows masaüstü uygulamasıdır.
 - SHA-256 ile kaynak/hedef bütünlük doğrulaması.
 
 **2. SESİ ÇÖZ**
-- Ses dosyalarının **içerikten** algılanması (uzantıya güvenilmez).
+- Ses dosyalarının içerikten algılanması (uzantıya güvenilmez).
 - Whisper **large-v3-turbo** ile yerel, çevrimdışı transkripsiyon (Candle).
 - Otomatik işlem kuyruğu; kesintiden devam, duraklatma, iptal, otomatik
   yeniden deneme.
@@ -39,7 +57,7 @@ Windows masaüstü uygulamasıdır.
 
 **3. UDF RAPORUNU OLUŞTUR**
 - 24 bölümlü bilirkişi raporunun otomatik üretimi.
-- Rapor **doğrudan UYAP UDF** olarak üretilir (DOCX'e çevirme gerekmez).
+- Rapor doğrudan UYAP UDF olarak üretilir (DOCX'e çevirme gerekmez).
 - UDF yapısal doğrulaması (9 kontrol).
 - PDF yardımcı kopyası, TXT transkript ekleri, JSON işlem manifesti.
 
@@ -48,6 +66,14 @@ Windows masaüstü uygulamasıdır.
 - AES-256-GCM şifreli yerel vaka deposu (Windows DPAPI korumalı ana anahtar).
 - Parola korumalı, bütünlük doğrulamalı yedekleme ve geri yükleme.
 - ed25519 imzalı güncelleme manifesti; güncelleme öncesi yedek ve geri dönüş.
+
+### İndirme
+
+| Dosya | Açıklama |
+|---|---|
+| `DELIL-Setup-<sürüm>-x64.exe` | Windows 11 x64 kurulum dosyası (uygulama + modeller dahil) |
+| `DELIL-Setup-<sürüm>-x64.exe.sha256` | Kurulum dosyasının SHA-256 checksum'ı |
+| `MODEL_MANIFEST.json` | Pakete dahil edilen model bileşenlerinin kaynak/sürüm/hash kaydı |
 
 ### Paket içeriği
 
@@ -75,7 +101,7 @@ Windows masaüstü uygulamasıdır.
 |---|---|---|
 | Whisper large-v3-turbo | `41f01f3f` (sabitlenmiş) | MIT |
 | ocrs OCR modelleri | `df0edd17` (sabitlenmiş) | CC-BY-SA-4.0 |
-| DELİL | 0.1.0 | MIT |
+| DELİL | 0.1.1 | MIT |
 
 Ayrıntılı hash ve kaynak bilgisi için `MODEL_MANIFEST.json` dosyasına bakın.
 
@@ -84,21 +110,18 @@ Ayrıntılı hash ve kaynak bilgisi için `MODEL_MANIFEST.json` dosyasına bakı
 **Bu sürümün yürütülebilir dosyaları İMZALANMAMIŞTIR.** Teslim ortamında
 kullanılabilir bir kod imzalama sertifikası bulunmadığından, Windows
 SmartScreen ilk çalıştırmada "Bilinmeyen yayımcı" uyarısı gösterebilir.
-İmzalanmamış uygulama, imzalıymış gibi gösterilmez. Kurumsal dağıtımda kod
-imzalama sertifikası ile imzalanması önerilir.
+İmzalanmamış uygulama, imzalıymış gibi gösterilmez.
 
 ### Bilinen sınırlamalar
 
 - **Gerçek UYAP Editör uyumluluk testi:** Resmî UYAP Editör Windows'a özeldir.
-  UDF biçimi, açık kaynak referans uygulamaları incelenerek doğrulanmıştır;
+  UDF biçimi açık kaynak referans uygulamaları incelenerek doğrulanmıştır;
   üretilen dosyalar DELİL'in kendi doğrulayıcısından geçer. Ancak resmî UYAP
-  Editör ile uyumluluk, teslim ortamında **doğrulanmamıştır**. Kullanıcıların
-  güncel resmî UYAP Editör ile test etmesi ve sonuçları bildirmesi istenir.
+  Editör ile uyumluluk, teslim ortamında **doğrulanmamıştır**.
 - **Türkçe WER/CER ölçümü:** Ölçüm altyapısı hazırdır; insan tarafından
   doğrulanmış Türkçe test setiyle gerçek ölçüm yapılması önerilir.
-- **GPU hızlandırma:** Kod GPU desteğini otomatik algılar; ancak GPU
-  hızlandırma gerçek donanımda test edilmeden "destekleniyor" olarak
-  bildirilmez. CPU her zaman çalışır.
+- **GPU hızlandırma:** Kod GPU desteğini otomatik algılar; ancak gerçek
+  donanımda test edilmeden "destekleniyor" olarak bildirilmez.
 
 ### Kapsam dışı (bilinçli olarak)
 
@@ -108,7 +131,7 @@ orijinalliği/montaj incelemesi, deepfake analizi, hukuki değerlendirme.
 
 ### Kurulum
 
-1. `DELIL-Setup-0.1.0-x64.exe` dosyasını indirin.
+1. `DELIL-Setup-<sürüm>-x64.exe` dosyasını indirin.
 2. SHA-256 checksum'ı doğrulayın.
 3. Kurulumu çalıştırın (yönetici izni gerekir).
 4. Masaüstündeki DELİL kısayolundan uygulamayı açın.
@@ -120,3 +143,4 @@ modeli kurması **istenmez**; tüm bileşenler kurulum paketine dahildir.
 
 _Bu sürüm notları bir AI ajanı (OpenHands) tarafından kullanıcı adına
 hazırlanmıştır._
+

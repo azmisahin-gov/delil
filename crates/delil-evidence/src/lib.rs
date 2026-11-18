@@ -535,9 +535,20 @@ pub fn build_audio_inventory(materials: &[Material], materials_root: &Path) -> V
         if !path.exists() {
             continue;
         }
-        match delil_audio::detect_container_from_path(&path) {
+        // Tek bir bozuk dosya tüm envanteri durdurmamalı: her dosya bağımsız
+        // değerlendirilir ve sorunlu dosyalar uyarı olarak kaydedilir.
+        let detected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            delil_audio::detect_container_from_path(&path)
+        }))
+        .unwrap_or(Ok(None));
+        match detected {
             Ok(Some(container)) => {
-                let technical = delil_audio::inventory(&path).unwrap_or_default();
+                let technical = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    delil_audio::inventory(&path)
+                }))
+                .ok()
+                .and_then(|r| r.ok())
+                .unwrap_or_default();
                 assets.push(AudioAsset {
                     id: AudioAssetId::new(),
                     material_id: m.id.clone(),
@@ -574,20 +585,131 @@ pub fn build_audio_inventory(materials: &[Material], materials_root: &Path) -> V
                     });
                 }
             }
-            Err(_) => {}
+            Err(e) => {
+                // Dosya okunamadı: sessizce atlama, uyarı kaydı oluştur.
+                assets.push(AudioAsset {
+                    id: AudioAssetId::new(),
+                    material_id: m.id.clone(),
+                    file_name: m.file_name.clone(),
+                    sha256: m.target_sha256.clone(),
+                    extracted_from_video: false,
+                    technical: delil_core::AudioTechnicalInfo {
+                        readable: false,
+                        warnings: vec![format!("Dosya incelenemedi: {e}")],
+                        ..Default::default()
+                    },
+                    queued: false,
+                    unsupported_reason: Some(format!("Dosya okunamadı: {e}")),
+                });
+            }
         }
     }
     assets
 }
 
-/// Kaynak aygıtta yazılımsal salt okunur koruma uygulanabilir mi?
-/// Uygulanamıyorsa `NotApplied` döner; donanımsal koruma iddiası üretilmez.
-pub fn attempt_software_write_protection(_root: &Path) -> WriteProtection {
-    // Windows'ta disk yazma koruması (diskpart/registry) yönetici yetkisi
-    // gerektirir ve kalıcıdır; bu nedenle varsayılan olarak uygulanmaz.
-    // Kullanıcı bunu açıkça isterse ve başarılı olursa SoftwareReadOnly
-    // döndürülmelidir. Burada güvenli varsayılan: uygulanmadı.
-    WriteProtection::NotApplied
+/// Kaynak aygıtta yazılımsal salt okunur koruma **durumunu** tespit eder.
+///
+/// Bu işlev korumayı uygulamaz; **var olan** durumu okur:
+/// * Aygıt/kart donanımsal yazma anahtarıyla salt okunur yapılmışsa (SD kart
+///   kilidi, USB yazma engelleyici) Windows bunu raporlar ve burada algılanır.
+/// * Aygıt salt okunur bağlanmışsa yine burada algılanır.
+///
+/// Uygulama, kullanıcı açıkça istemedikçe aygıtın yazma durumunu **değiştirmez**.
+/// Yazılımsal koruma, donanımsal yazma engelleyici ile **eşdeğer gösterilmez**.
+pub fn attempt_software_write_protection(root: &Path) -> WriteProtection {
+    #[cfg(windows)]
+    {
+        return detect_windows_write_protection(root);
+    }
+    #[cfg(not(windows))]
+    {
+        // Unix'te bağlama seçeneklerinden salt okunur durumu okunabilir.
+        if let Ok(mounts) = std::fs::read_to_string("/proc/mounts") {
+            let root_str = root.to_string_lossy();
+            for line in mounts.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 4
+                    && parts[1] == root_str
+                    && parts[3].split(',').any(|o| o == "ro")
+                {
+                    return WriteProtection::SoftwareReadOnly;
+                }
+            }
+        }
+        WriteProtection::NotApplied
+    }
+}
+
+/// Windows'ta sürücünün yazma koruması durumunu okur.
+#[cfg(windows)]
+fn detect_windows_write_protection(root: &Path) -> WriteProtection {
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+
+    // Sürücü kökünü al (ör. "E:\\").
+    let drive = drive_letter(root);
+    let Some(vol) = drive else {
+        return WriteProtection::NotApplied;
+    };
+    // "\\.\E:" biçiminde birim yolu.
+    let device = format!("\\\\.\\{vol}");
+    let wide: Vec<u16> = device.encode_utf16().chain(std::iter::once(0)).collect();
+
+    // Yazma erişimi isteyip hata dönerse, aygıt salt okunurdur.
+    unsafe {
+        let handle = CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            (FILE_GENERIC_READ | FILE_GENERIC_WRITE).0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            None,
+        );
+        match handle {
+            Ok(h) => {
+                let _ = windows::Win32::Foundation::CloseHandle(h);
+                // Yazma için açılabildi -> yazma koruması yok.
+                WriteProtection::NotApplied
+            }
+            Err(_) => {
+                // Yazma için açılamadı. Okuma için açılabiliyorsa salt okunur
+                // birim (donanımsal kilit veya salt okunur bağlama) demektir.
+                let r = CreateFileW(
+                    PCWSTR(wide.as_ptr()),
+                    FILE_GENERIC_READ.0,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    None,
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL,
+                    None,
+                );
+                match r {
+                    Ok(h) => {
+                        let _ = windows::Win32::Foundation::CloseHandle(h);
+                        WriteProtection::SoftwareReadOnly
+                    }
+                    Err(_) => WriteProtection::NotApplied,
+                }
+            }
+        }
+    }
+}
+
+/// Bir yolun sürücü harfini döndürür (ör. "E:").
+#[cfg(windows)]
+fn drive_letter(path: &Path) -> Option<String> {
+    let s = path.to_string_lossy();
+    let mut chars = s.chars();
+    let c = chars.next()?;
+    if c.is_ascii_alphabetic() && chars.next() == Some(':') {
+        Some(format!("{}:", c.to_ascii_uppercase()))
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -734,6 +856,59 @@ mod tests {
             "içerik tabanlı algılama uzantıya güvenmemeli"
         );
         assert_eq!(assets[0].technical.container, "WAV");
+    }
+
+    #[test]
+    fn inventory_survives_short_and_corrupt_files() {
+        // Regresyon: gerçek kullanımda SD kartta 12 baytlık bir dosya, ASF
+        // kontrolünde panik yapıp tüm uygulamayı çökertiyordu. Artık tek bir
+        // bozuk dosya envanteri durdurmamalı; diğer sesler yine bulunmalı.
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+
+        // Gerçek bir WAV.
+        let sr = 16000u32;
+        let data_len = 1600u32 * 2;
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&sr.to_le_bytes());
+        wav.extend_from_slice(&(sr * 2).to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&data_len.to_le_bytes());
+        wav.extend(std::iter::repeat_n(0u8, data_len as usize));
+        write(&src, "kayit.wav", &wav);
+
+        // Panik veren 12 baytlık dosya (ASF öneki).
+        write(
+            &src,
+            "bozuk_12bayt.bin",
+            b"\x30\x26\xB2\x75\x8E\x66\xCF\x11\xA6\xD9\x00\xAA",
+        );
+        // 0, 1, 8, 15 baytlık dosyalar.
+        write(&src, "bos.bin", b"");
+        write(&src, "tek.bin", b"x");
+        write(&src, "ftyp8.bin", b"abcdftyp");
+        write(&src, "onbes.bin", b"0123456789abcde");
+
+        let target = dir.path().join("out");
+        let source = dummy_source(&src);
+        let mats = acquire_files(&src, &source, &target, &AcquireOptions::default(), None).unwrap();
+        assert_eq!(mats.len(), 6);
+
+        // Panik olmadan tamamlanmalı ve gerçek WAV bulunmalı.
+        let assets = build_audio_inventory(&mats, &target);
+        assert!(
+            assets.iter().any(|a| a.file_name == "kayit.wav"),
+            "gerçek WAV bulunmalı"
+        );
     }
 
     #[test]

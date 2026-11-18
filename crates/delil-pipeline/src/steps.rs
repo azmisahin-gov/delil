@@ -222,6 +222,16 @@ impl<'a> PipelineRunner<'a> {
             self.config.material_source.clone(),
             self.config.source.clone(),
         ) {
+            // Kaynağın gerçek yazma koruması durumunu tespit et ve kaydet
+            // (donanımsal SD/USB kilidi veya salt okunur bağlama). Yazılımsal
+            // koruma donanımsal engelleyici ile eşdeğer gösterilmez.
+            let mut source = source;
+            source.write_protection = delil_evidence::attempt_software_write_protection(&src);
+            case.add_audit(
+                "sistem",
+                "yazma-koruması",
+                source.write_protection.label_tr().to_string(),
+            );
             if !case.sources.iter().any(|s| s.id == source.id) {
                 case.sources.push(source.clone());
             }

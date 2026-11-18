@@ -209,16 +209,23 @@ impl DelilApp {
         self.rx = Some(rx);
         self.result_rx = Some(rrx);
         std::thread::spawn(move || {
-            let mut runner = PipelineRunner::new(cfg);
-            let mut cb = |e: PipelineEvent| {
-                let _ = tx.send(e);
-            };
-            runner.events = Some(&mut cb);
-            match runner.run() {
-                Ok(res) => {
+            // Beklenmedik bir panik olursa (ör. tek bir bozuk dosya), uygulama
+            // kapanmamalı; kullanıcıya açık hata bildirilmelidir. Bu güvenlik
+            // ağıdır; asıl hatalar ilgili modüllerde giderilmiştir.
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let mut runner = PipelineRunner::new(cfg);
+                let mut cb = |e: PipelineEvent| {
+                    let _ = tx.send(e);
+                };
+                runner.events = Some(&mut cb);
+                runner.run()
+            }));
+
+            match result {
+                Ok(Ok(res)) => {
                     let _ = rtx.send(Ok(res));
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     let _ = tx.send(PipelineEvent {
                         step: PipelineStep::ValidatingUdf,
                         state: delil_core::StepState::Failed {
@@ -227,6 +234,17 @@ impl DelilApp {
                         message: format!("İşlem durdu: {e}"),
                     });
                     let _ = rtx.send(Err(e.to_string()));
+                }
+                Err(panic) => {
+                    let msg = panic_message(&panic);
+                    let _ = tx.send(PipelineEvent {
+                        step: PipelineStep::ValidatingUdf,
+                        state: delil_core::StepState::Failed {
+                            message: msg.clone(),
+                        },
+                        message: format!("Beklenmedik hata: {msg}"),
+                    });
+                    let _ = rtx.send(Err(format!("Beklenmedik hata: {msg}")));
                 }
             }
         });
@@ -340,6 +358,17 @@ fn transcription_model_available() -> bool {
         }
     }
     false
+}
+
+/// Panik yükünden okunabilir bir mesaj çıkarır.
+fn panic_message(panic: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = panic.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = panic.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "bilinmeyen hata".to_string()
+    }
 }
 
 fn non_empty(s: &str) -> Option<String> {

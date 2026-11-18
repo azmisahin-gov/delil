@@ -116,47 +116,59 @@ impl Container {
 }
 
 /// İçerik imzasına göre kapsayıcı algılar. Uzantıya güvenilmez.
+///
+/// Bu işlev **panik yapmaz**: kısa veya bozuk dosyalarda `None` döner.
+/// Her imza kontrolü, gereken uzunluğu ayrıca doğrular.
 pub fn detect_container(bytes: &[u8]) -> Option<Container> {
-    if bytes.len() < 12 {
-        return None;
-    }
     let b = bytes;
-    if &b[0..4] == b"RIFF" && &b[8..12] == b"WAVE" {
+    let at = |off: usize, pat: &[u8]| -> bool {
+        b.len() >= off + pat.len() && &b[off..off + pat.len()] == pat
+    };
+
+    // RIFF....WAVE  (WAV veya BWF) — en az 12 bayt gerekir.
+    if at(0, b"RIFF") && at(8, b"WAVE") {
         let head = &b[..b.len().min(4096)];
         if head.windows(4).any(|w| w == b"bext") {
             return Some(Container::Bwf);
         }
         return Some(Container::Wav);
     }
-    if &b[0..4] == b"FORM" && (&b[8..12] == b"AIFF" || &b[8..12] == b"AIFC") {
+    // FORM....AIFF / AIFC
+    if at(0, b"FORM") && (at(8, b"AIFF") || at(8, b"AIFC")) {
         return Some(Container::Aiff);
     }
-    if &b[0..4] == b"fLaC" {
+    if at(0, b"fLaC") {
         return Some(Container::Flac);
     }
-    if &b[0..4] == b"OggS" {
+    if at(0, b"OggS") {
         let head = &b[..b.len().min(64)];
         if head.windows(8).any(|w| w == b"OpusHead") {
             return Some(Container::Opus);
         }
         return Some(Container::Ogg);
     }
-    if &b[0..4] == b"caff" {
+    if at(0, b"caff") {
         return Some(Container::Caf);
     }
-    if &b[0..3] == b"ID3" {
+    if at(0, b"ID3") {
         return Some(Container::Mp3);
     }
-    if b[0] == 0xFF && (b[1] & 0xE0) == 0xE0 {
+    // MPEG çerçeve eşitleme: 0xFF 0xEx/0xFx (en az 2 bayt).
+    if b.len() >= 2 && b[0] == 0xFF && (b[1] & 0xE0) == 0xE0 {
         return Some(Container::Mp3);
     }
-    if &b[0..5] == b"#!AMR" {
+    if at(0, b"#!AMR") {
         return Some(Container::Amr);
     }
-    if &b[0..16] == b"\x30\x26\xB2\x75\x8E\x66\xCF\x11\xA6\xD9\x00\xAA\x00\x62\xCE\x6C" {
+    // ASF (WMA) — 16 baytlık GUID.
+    if at(
+        0,
+        b"\x30\x26\xB2\x75\x8E\x66\xCF\x11\xA6\xD9\x00\xAA\x00\x62\xCE\x6C",
+    ) {
         return Some(Container::Wma);
     }
-    if &b[4..8] == b"ftyp" {
+    // ISO-BMFF (MP4/M4A/MOV): ....ftyp + 4 baytlık marka (en az 12 bayt).
+    if at(4, b"ftyp") && b.len() >= 12 {
         let brand = &b[8..12];
         return Some(match brand {
             // Yalnızca gerçek ses kapsayıcı markaları ses sayılır; `isom`,
@@ -166,14 +178,16 @@ pub fn detect_container(bytes: &[u8]) -> Option<Container> {
             _ => Container::Mp4,
         });
     }
-    if &b[0..4] == b"\x1A\x45\xDF\xA3" {
+    // Matroska/WebM (EBML)
+    if at(0, b"\x1A\x45\xDF\xA3") {
         let head = &b[..b.len().min(64)];
         if head.windows(4).any(|w| w == b"webm") {
             return Some(Container::WebM);
         }
         return Some(Container::Mkv);
     }
-    if b[0] == 0xFF && (b[1] == 0xF1 || b[1] == 0xF9) {
+    // ADTS AAC (0xFF 0xF1 / 0xFF 0xF9) — MP3 kontrolünden sonra.
+    if b.len() >= 2 && b[0] == 0xFF && (b[1] == 0xF1 || b[1] == 0xF9) {
         return Some(Container::Aac);
     }
     None
@@ -446,6 +460,49 @@ mod tests {
             None
         );
         assert_eq!(detect_container(b"%PDF-1.7 abcdefghij"), None);
+    }
+
+    #[test]
+    fn detect_container_never_panics_on_short_or_arbitrary_input() {
+        // Regresyon: 12-15 baytlık kısa dosyalar ASF (16 bayt) kontrolünde
+        // panik yapıyordu (gerçek kullanımda SD kartta bulundu).
+        // 0..64 bayt arası tüm uzunluklar ve çeşitli içerikler panik yapmamalı.
+        for len in 0..=64usize {
+            // Sıfırlarla dolu.
+            assert!(detect_container(&vec![0u8; len]).is_none() || len >= 12);
+            // Bilinen imza önekleri.
+            for prefix in [
+                &b"RIFF"[..],
+                b"FORM",
+                b"fLaC",
+                b"OggS",
+                b"caff",
+                b"ID3",
+                b"#!AMR",
+                b"\x30\x26\xB2\x75\x8E\x66\xCF\x11\xA6\xD9\x00\xAA\x00\x62\xCE\x6C",
+                b"\x1A\x45\xDF\xA3",
+                b"\xFF\xF1",
+                b"\xFF\xE0",
+            ] {
+                let mut v = prefix.to_vec();
+                v.resize(len.max(prefix.len()), 0);
+                let v = &v[..len.min(v.len())];
+                // Panik yapmamalı; sonuç ne olursa olsun.
+                let _ = detect_container(v);
+            }
+            // Rastgele baytlar.
+            let v: Vec<u8> = (0..len).map(|i| (i as u8).wrapping_mul(37)).collect();
+            let _ = detect_container(&v);
+        }
+    }
+
+    #[test]
+    fn twelve_byte_asf_prefix_does_not_panic() {
+        // Tam olarak panik veren durum: 12 baytlık dosya, ASF kontrolü 16 bayt
+        // istiyordu.
+        let v = &b"\x30\x26\xB2\x75\x8E\x66\xCF\x11\xA6\xD9\x00\xAA"[..];
+        assert_eq!(v.len(), 12);
+        assert_eq!(detect_container(v), None);
     }
 
     #[test]

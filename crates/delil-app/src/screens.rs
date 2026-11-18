@@ -214,11 +214,44 @@ fn draw_new(app: &mut DelilApp, ui: &mut egui::Ui) {
                 ui.label(format!("• {} — {}", d.root, d.kind.label_tr()));
                 if d.is_system_disk {
                     ui.colored_label(egui::Color32::DARK_RED, "(sistem diski — seçilemez)");
-                } else if ui.button("Bu aygıtı kullan").clicked() {
-                    app.material_path = Some(std::path::PathBuf::from(&d.root));
+                } else {
+                    // Gerçek yazma koruması durumunu göster (donanımsal kilit
+                    // veya salt okunur bağlama). İddia değil, ölçümdür.
+                    let wp = delil_evidence::attempt_software_write_protection(
+                        std::path::Path::new(&d.root),
+                    );
+                    match wp {
+                        delil_core::WriteProtection::SoftwareReadOnly => {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(0, 140, 0),
+                                "🔒 yazmaya kapalı (salt okunur)",
+                            );
+                        }
+                        delil_core::WriteProtection::HardwareWriteBlockerReported => {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(0, 140, 0),
+                                "🔒 donanımsal engelleyici bildirildi",
+                            );
+                        }
+                        delil_core::WriteProtection::NotApplied => {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(200, 120, 0),
+                                "⚠ yazmaya açık (uygulama yine de yazmaz)",
+                            );
+                        }
+                    }
+                    if ui.button("Bu aygıtı kullan").clicked() {
+                        app.material_path = Some(std::path::PathBuf::from(&d.root));
+                    }
                 }
             });
         }
+        ui.add_space(4.0);
+        ui.label(
+            "Not: DELİL kaynak materyale hiçbir koşulda yazmaz; yalnızca kopyalar. \
+             Yukarıdaki gösterge, aygıtın kendi yazma koruması durumudur. \
+             Yazılımsal koruma, donanımsal yazma engelleyici ile eşdeğer değildir.",
+        );
     });
 
     ui.add_space(8.0);
