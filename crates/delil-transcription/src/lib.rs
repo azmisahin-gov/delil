@@ -10,9 +10,11 @@
 //! * [`queue`] — kesintiden devam edebilen, duraklatılabilir, iptal
 //!   edilebilir otomatik işlem kuyruğu.
 
+pub mod benchmark;
 pub mod engine;
 pub mod queue;
 
+pub use benchmark::{compute_cer, compute_wer, BenchmarkReport, EvaluationResult, WerReport};
 pub use engine::{
     Segment as EngineSegment, TranscriptionEngine, TranscriptionOptions, TranscriptionResult,
 };

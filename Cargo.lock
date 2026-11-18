@@ -1273,10 +1273,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "delil-audio",
  "delil-case-store",
  "delil-core",
  "delil-evidence",
  "delil-pipeline",
+ "delil-transcription",
  "eframe",
  "egui",
  "rfd",

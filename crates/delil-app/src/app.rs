@@ -5,8 +5,8 @@
 //! izleyebilir.
 
 use crate::screens::{Screen, WorkflowState};
-use delil_core::{Case, PipelineStep};
-use delil_pipeline::{PipelineConfig, PipelineEvent, PipelineRunner};
+use delil_core::{Case, PipelineStep, TranscriptEditor};
+use delil_pipeline::{PipelineConfig, PipelineEvent, PipelineResult, PipelineRunner};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
@@ -32,6 +32,8 @@ pub struct DelilApp {
     pub show_logs: bool,
     /// Arka plan işinden gelen olaylar.
     rx: Option<Receiver<PipelineEvent>>,
+    /// İş akışı tamamlandığında gelen sonuç.
+    result_rx: Option<Receiver<Result<PipelineResult, String>>>,
     /// Tamamlanan vaka.
     pub case: Option<Case>,
     /// Üretilen UDF yolu.
@@ -42,6 +44,18 @@ pub struct DelilApp {
     pub error: Option<String>,
     /// Son oluşturulan raporlar (basit liste).
     pub recent_reports: Vec<String>,
+    /// Kontrol ekranında seçili transkript sırası.
+    pub selected_transcript: usize,
+    /// Etkin transkript düzenleyicisi.
+    pub editor: Option<TranscriptEditor>,
+    /// Etkin transkriptin geçerli dalga biçimi.
+    pub waveform: Option<delil_audio::Waveform>,
+    /// Oynatma durumu.
+    pub playback: delil_audio::PlaybackState,
+    /// Metin düzeltme alanı (seçili segment).
+    pub edit_buffer: String,
+    /// Düzeltilen segment sırası.
+    pub edit_index: usize,
 }
 
 impl DelilApp {
@@ -59,11 +73,91 @@ impl DelilApp {
             log: vec!["DELİL başlatıldı.".to_string()],
             show_logs: false,
             rx: None,
+            result_rx: None,
             case: None,
             udf_path: None,
             validation_summary: String::new(),
             error: None,
             recent_reports: Vec::new(),
+            selected_transcript: 0,
+            editor: None,
+            waveform: None,
+            playback: delil_audio::PlaybackState::default(),
+            edit_buffer: String::new(),
+            edit_index: 0,
+        }
+    }
+
+    /// Bir transkripti düzenlemek üzere yükler; dalga biçimini hazırlar.
+    pub fn load_transcript_for_edit(&mut self, index: usize) {
+        let Some(case) = &self.case else { return };
+        let Some(t) = case.transcripts.get(index) else {
+            return;
+        };
+        self.selected_transcript = index;
+        self.editor = Some(TranscriptEditor::from_transcript(t, "bilirkişi"));
+        // Dalga biçimi için ses örneğini çöz.
+        let asset = case
+            .audio_assets
+            .iter()
+            .find(|a| a.id == t.audio_asset_id)
+            .cloned();
+        let material = asset.and_then(|a| {
+            case.materials
+                .iter()
+                .find(|m| m.id == a.material_id)
+                .cloned()
+        });
+        if let Some(m) = material {
+            let root = std::path::PathBuf::from(&case.case_root).join("materials");
+            let p = root.join(&m.stored_relative_path);
+            if let Ok(samples) = delil_transcription::decode_audio_file(&p) {
+                self.playback.duration_seconds = samples.len() as f64 / 16000.0;
+                self.waveform = Some(delil_audio::Waveform::from_samples(&samples, 800));
+            }
+        }
+        if let Some(ed) = &self.editor {
+            if let Some(seg) = ed.segments.first() {
+                self.edit_buffer = seg.text.clone();
+            }
+        }
+    }
+
+    /// Seçili segmentin metin düzeltmesini uygular.
+    pub fn apply_text_edit(&mut self) {
+        if let Some(ed) = self.editor.as_mut() {
+            let idx = self.edit_index;
+            let text = self.edit_buffer.clone();
+            if ed
+                .apply(delil_core::EditOperation::SetText { index: idx, text })
+                .is_ok()
+            {
+                self.log(format!("Segment {idx} düzeltildi."));
+            }
+        }
+    }
+
+    /// Düzenlemeleri transkripte yeni sürüm olarak kaydeder.
+    pub fn commit_edits(&mut self) {
+        let (Some(ed), Some(case)) = (self.editor.as_ref(), self.case.as_mut()) else {
+            return;
+        };
+        let idx = self.selected_transcript;
+        if let Some(t) = case.transcripts.get_mut(idx) {
+            let v = ed.commit_to(t);
+            self.log(format!("Transkript {idx} yeni sürüm: {v}"));
+        }
+    }
+
+    /// Bilirkişi onayını kaydeder.
+    pub fn approve_transcript(&mut self) {
+        let (Some(ed), Some(case)) = (self.editor.as_ref(), self.case.as_mut()) else {
+            return;
+        };
+        let idx = self.selected_transcript;
+        if let Some(t) = case.transcripts.get_mut(idx) {
+            let v = ed.approve(t);
+            self.log(format!("Transkript {idx} onaylandı (sürüm {v})"));
         }
     }
 
@@ -97,24 +191,29 @@ impl DelilApp {
         self.screen = Screen::Processing;
 
         let (tx, rx) = channel();
+        let (rtx, rrx) = channel();
         self.rx = Some(rx);
+        self.result_rx = Some(rrx);
         std::thread::spawn(move || {
             let mut runner = PipelineRunner::new(cfg);
             let mut cb = |e: PipelineEvent| {
                 let _ = tx.send(e);
             };
             runner.events = Some(&mut cb);
-            let result = runner.run();
-            // Sonucu özel bir olayla iletmek yerine kanalı kapatırız; hata
-            // durumunda log üzerinden bildirilir.
-            if let Err(e) = result {
-                let _ = tx.send(PipelineEvent {
-                    step: PipelineStep::ValidatingUdf,
-                    state: delil_core::StepState::Failed {
-                        message: e.to_string(),
-                    },
-                    message: format!("İşlem durdu: {e}"),
-                });
+            match runner.run() {
+                Ok(res) => {
+                    let _ = rtx.send(Ok(res));
+                }
+                Err(e) => {
+                    let _ = tx.send(PipelineEvent {
+                        step: PipelineStep::ValidatingUdf,
+                        state: delil_core::StepState::Failed {
+                            message: e.to_string(),
+                        },
+                        message: format!("İşlem durdu: {e}"),
+                    });
+                    let _ = rtx.send(Err(e.to_string()));
+                }
             }
         });
     }
@@ -130,6 +229,37 @@ impl DelilApp {
         for e in events {
             self.log(format!("[{}] {}", e.step.label_tr(), e.message));
             self.workflow.apply(&e);
+        }
+        // Sonuç geldiyse vakayı yükle.
+        let mut results = Vec::new();
+        if let Some(rx) = &self.result_rx {
+            while let Ok(r) = rx.try_recv() {
+                results.push(r);
+            }
+        }
+        for r in results {
+            match r {
+                Ok(res) => {
+                    self.validation_summary = res.validation.summary_tr();
+                    self.udf_path = Some(res.udf_path.clone());
+                    self.recent_reports.push(format!(
+                        "{} — {}",
+                        res.case
+                            .assignment
+                            .case_number
+                            .clone()
+                            .unwrap_or_else(|| "(dosya no yok)".into()),
+                        res.udf_path.display()
+                    ));
+                    self.case = Some(res.case);
+                    self.workflow.finished = true;
+                    self.log("İşlem tamamlandı; UDF üretildi.".to_string());
+                }
+                Err(e) => {
+                    self.error = Some(e.clone());
+                    self.log(format!("Hata: {e}"));
+                }
+            }
         }
     }
 

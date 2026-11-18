@@ -305,69 +305,180 @@ fn draw_processing(app: &mut DelilApp, ui: &mut egui::Ui) {
 /// Kontrol ekranı (şartname 14.4).
 fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
     ui.heading("Kontrol");
-    ui.add_space(8.0);
+    ui.add_space(4.0);
     ui.label("Belirsiz işaretlenmiş bölümleri dinleyin, transkripti düzeltin ve soru yanıtlarını tamamlayın.");
     ui.add_space(8.0);
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        if let Some(case) = &app.case {
-            ui.group(|ui| {
-                ui.heading("Ses ve transkript");
-                for t in &case.transcripts {
+        // Vaka verisini kopyala; arayüz `app` üzerinde değişiklik yaparken
+        // ödünç alma çakışması olmasın.
+        let Some(case) = app.case.clone() else {
+            ui.label("Vaka verisi yüklenmedi.");
+            return;
+        };
+
+        // Transkript seçimi.
+        ui.group(|ui| {
+            ui.heading("Ses ve transkript");
+            if case.transcripts.is_empty() {
+                ui.label("Transkript üretilmedi (model yüklenmemiş olabilir).");
+                return;
+            }
+            // (ad, durum) listesini önceden hazırla; `app` üzerinde değişiklik
+            // yaparken `case` ödünç alınmış kalmasın.
+            let items: Vec<(usize, String)> = case
+                .transcripts
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
                     let name = case
                         .audio_assets
                         .iter()
                         .find(|a| a.id == t.audio_asset_id)
                         .map(|a| a.file_name.clone())
                         .unwrap_or_default();
-                    ui.collapsing(&name, |ui| {
-                        ui.label(format!("Durum: {}", t.current().status.label_tr()));
-                        ui.label(format!("Model: {} ({})", t.model_name, t.model_version));
-                        for s in &t.current().segments {
-                            ui.horizontal(|ui| {
-                                ui.monospace(format!("[{:.1}s-{:.1}s]", s.start_seconds, s.end_seconds));
-                                if s.quality != delil_core::QualityFlag::Normal {
-                                    ui.colored_label(
-                                        egui::Color32::from_rgb(200, 120, 0),
-                                        format!("({})", s.quality.label_tr()),
-                                    );
-                                }
-                                ui.label(&s.text);
-                            });
+                    (i, format!("{name} — {}", t.current().status.label_tr()))
+                })
+                .collect();
+            let mut clicked: Option<usize> = None;
+            for (i, label) in items {
+                if ui
+                    .selectable_label(app.selected_transcript == i, label)
+                    .clicked()
+                {
+                    clicked = Some(i);
+                }
+            }
+            if let Some(i) = clicked {
+                app.load_transcript_for_edit(i);
+            }
+        });
+
+        // Dalga biçimi ve oynatma.
+        ui.add_space(6.0);
+        ui.group(|ui| {
+            ui.heading("Dalga biçimi ve oynatma");
+            if let Some(wf) = &app.waveform {
+                draw_waveform(ui, wf, app.playback.position_seconds);
+            } else {
+                ui.label("Dalga biçimi yüklenmedi.");
+            }
+            ui.horizontal(|ui| {
+                if ui.button(if app.playback.playing { "⏸ Duraklat" } else { "▶ Oynat" }).clicked() {
+                    app.playback.toggle();
+                }
+                if ui.button("⏪ 5 sn geri").clicked() {
+                    app.playback.rewind(5.0);
+                }
+                if ui.button("⏩ 5 sn ileri").clicked() {
+                    app.playback.forward(5.0);
+                }
+                if ui.button(format!("Hız: {:.2}x", app.playback.rate.0)).clicked() {
+                    app.playback.rate.next();
+                }
+                if ui.button("İşaretle").clicked() {
+                    app.playback.add_marker("işaret", None);
+                }
+                ui.label(format!(
+                    "{:.1}s / {:.1}s",
+                    app.playback.position_seconds, app.playback.duration_seconds
+                ));
+            });
+            ui.label(format!("Kanal: {}", app.playback.channel.label_tr()));
+            if !app.playback.markers.is_empty() {
+                ui.label(format!("İşaret sayısı: {}", app.playback.markers.len()));
+            }
+        });
+
+        // Transkript düzenleme.
+        ui.add_space(6.0);
+        ui.group(|ui| {
+            ui.heading("Transkript düzenleme");
+            if let Some(ed) = &app.editor {
+                egui::Grid::new("segment_edit")
+                    .num_columns(3)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for (i, s) in ed.segments.iter().enumerate() {
+                            // Satıra tıklandığında sesi o noktaya götür.
+                            if ui
+                                .selectable_label(
+                                    app.edit_index == i,
+                                    format!("[{:.1}s-{:.1}s]", s.start_seconds, s.end_seconds),
+                                )
+                                .clicked()
+                            {
+                                app.edit_index = i;
+                                app.edit_buffer = s.text.clone();
+                                app.playback.seek_to_segment(s.start_seconds);
+                            }
+                            if s.quality != delil_core::QualityFlag::Normal {
+                                ui.colored_label(
+                                    egui::Color32::from_rgb(200, 120, 0),
+                                    s.quality.label_tr(),
+                                );
+                            } else {
+                                ui.label("");
+                            }
+                            ui.label(&s.text);
+                            ui.end_row();
                         }
                     });
-                }
-                if case.transcripts.is_empty() {
-                    ui.label("Transkript üretilmedi (model yüklenmemiş olabilir).");
-                }
-            });
-
-            ui.add_space(8.0);
-            ui.group(|ui| {
-                ui.heading("Görevlendirme soruları");
-                for q in &case.assignment.questions {
-                    ui.label(format!("{}. {}", q.ordinal, q.original_text));
-                    ui.label(format!(
-                        "Yanıt: {}",
-                        q.expert_answer.as_deref().unwrap_or("(yanıtlanmadı)")
-                    ));
-                }
-                if case.assignment.questions.is_empty() {
-                    ui.label("Soru bulunamadı.");
-                }
-            });
-
-            if !case.exceptions.is_empty() {
-                ui.add_space(8.0);
-                ui.group(|ui| {
-                    ui.heading("Karar gereken konular");
-                    for e in &case.exceptions {
-                        ui.label(format!("• {}", e.description));
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(format!("Segment {} metni:", app.edit_index));
+                    ui.text_edit_singleline(&mut app.edit_buffer);
+                });
+                ui.horizontal(|ui| {
+                    if ui.button("Düzeltmeyi uygula").clicked() {
+                        app.apply_text_edit();
+                    }
+                    if ui.button("Geri al").clicked() {
+                        if let Some(ed) = app.editor.as_mut() {
+                            ed.undo();
+                        }
+                    }
+                    if ui.button("Yinele").clicked() {
+                        if let Some(ed) = app.editor.as_mut() {
+                            ed.redo();
+                        }
+                    }
+                    if ui.button("Sürüm olarak kaydet").clicked() {
+                        app.commit_edits();
+                    }
+                    if ui.button("Onayla").clicked() {
+                        app.approve_transcript();
                     }
                 });
+            } else {
+                ui.label("Düzenlemek için yukarıdan bir transkript seçin.");
             }
-        } else {
-            ui.label("Vaka verisi yüklenmedi.");
+        });
+
+        // Sorular.
+        ui.add_space(6.0);
+        ui.group(|ui| {
+            ui.heading("Görevlendirme soruları");
+            for q in &case.assignment.questions {
+                ui.label(format!("{}. {}", q.ordinal, q.original_text));
+                ui.label(format!(
+                    "Yanıt: {}",
+                    q.expert_answer.as_deref().unwrap_or("(yanıtlanmadı)")
+                ));
+            }
+            if case.assignment.questions.is_empty() {
+                ui.label("Soru bulunamadı.");
+            }
+        });
+
+        if !case.exceptions.is_empty() {
+            ui.add_space(6.0);
+            ui.group(|ui| {
+                ui.heading("Karar gereken konular");
+                for e in &case.exceptions {
+                    ui.label(format!("• {}", e.description));
+                }
+            });
         }
     });
 
@@ -380,6 +491,38 @@ fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
             app.screen = Screen::Result;
         }
     });
+}
+
+/// Dalga biçimini çizer (zarf).
+fn draw_waveform(ui: &mut egui::Ui, wf: &delil_audio::Waveform, position: f64) {
+    let desired = egui::vec2(ui.available_width().min(900.0), 80.0);
+    let (rect, _resp) = ui.allocate_exact_size(desired, egui::Sense::hover());
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 2.0, egui::Color32::from_rgb(24, 24, 28));
+    let mid = rect.center().y;
+    let half = rect.height() / 2.0 - 2.0;
+    let n = wf.buckets.max(1);
+    let w = rect.width() / n as f32;
+    for i in 0..n {
+        let x = rect.left() + i as f32 * w;
+        let lo = wf.min.get(i).copied().unwrap_or(0.0).clamp(-1.0, 1.0);
+        let hi = wf.max.get(i).copied().unwrap_or(0.0).clamp(-1.0, 1.0);
+        let y1 = mid - hi * half;
+        let y2 = mid - lo * half;
+        painter.line_segment(
+            [egui::pos2(x, y1), egui::pos2(x, y2.max(y1 + 0.5))],
+            egui::Stroke::new(w.max(0.5), egui::Color32::from_rgb(90, 160, 240)),
+        );
+    }
+    // Geçerli konum imleci.
+    if wf.duration_seconds > 0.0 {
+        let frac = (position / wf.duration_seconds).clamp(0.0, 1.0) as f32;
+        let x = rect.left() + frac * rect.width();
+        painter.line_segment(
+            [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+            egui::Stroke::new(1.5, egui::Color32::from_rgb(240, 80, 80)),
+        );
+    }
 }
 
 /// Sonuç ekranı (şartname 14.5).
