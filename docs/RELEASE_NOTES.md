@@ -1,12 +1,31 @@
 # DELİL — Sürüm Notları
 
-## DELİL 0.1.1 (Windows 11 x64)
+## DELİL 0.1.2 (Windows 11 x64)
 
 **Delili tak. Sesi çöz. UDF raporunu al.**
 
-### Bu sürümde düzeltilenler (0.1.0 → 0.1.1)
+### Bu sürümde düzeltilenler (0.1.1 → 0.1.2)
 
-Kritik saha hatası düzeltmesi ve güvenlik iyileştirmeleri:
+Kullanıcı geri bildirimiyle bulunan sorunlar giderildi:
+
+0. **Model bulunamıyor hatası (kritik).** Kurulumdan sonra transkripsiyon
+   "Whisper model dizini yapılandırılmamış" hatası veriyordu: arayüz `models/`
+   dizinini buluyordu ama motor yalnızca ortam değişkenine bakıyordu. Artık
+   ikisi de aynı ortak çözümleyiciyi kullanır; kurulumdaki model otomatik
+   bulunur.
+0. **Bilirkişi bilgileri görevlendirme belgesinden çıkarılıyor.** Ad soyad,
+   unvan ve sicil no belgede varsa otomatik alınır; arayüzde çıkarılan bilgiler
+   gösterilir ve boş alanlar ön-doldurulur (sizin girdiğiniz değer önceliklidir).
+0. **Yazılımsal yazma koruması artık uygulanabilir.** Aygıt listesindeki
+   "Salt okunur yap" düğmesiyle aygıt Windows düzeyinde salt okunur yapılabilir
+   (diskpart; yönetici yetkisi gerekir). Onay penceresiyle açık onay alınır;
+   sonuç yeniden ölçülür. Donanımsal engelleyici ile eşdeğer gösterilmez.
+0. **Arka plandaki konsol penceresi (siyah ekran) kaldırıldı.** Bu bir GUI
+   uygulamasıdır; artık konsol penceresi açılmaz.
+0. **Birden fazla harici aygıt bağlıysa** açık uyarı gösterilir ve kaynağı
+   siz seçersiniz.
+
+Ayrıca (0.1.1'den devralınan):
 
 1. **Çökme hatası giderildi (kritik).** Kaynak materyalde 12–15 baytlık kısa bir
    dosya bulunduğunda uygulama çöküyordu (içerik algılama kodu, 16 baytlık imza
@@ -101,7 +120,7 @@ engelleyici kullanılması önerilir.
 |---|---|---|
 | Whisper large-v3-turbo | `41f01f3f` (sabitlenmiş) | MIT |
 | ocrs OCR modelleri | `df0edd17` (sabitlenmiş) | CC-BY-SA-4.0 |
-| DELİL | 0.1.1 | MIT |
+| DELİL | 0.1.2 | MIT |
 
 Ayrıntılı hash ve kaynak bilgisi için `MODEL_MANIFEST.json` dosyasına bakın.
 
