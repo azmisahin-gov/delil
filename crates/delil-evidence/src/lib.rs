@@ -256,9 +256,11 @@ fn detect_devices_unix() -> Vec<DetectedDevice> {
 
 #[cfg(windows)]
 fn detect_devices_windows() -> Vec<DetectedDevice> {
-    // A'dan Z'ye sürücü harflerini dene; GetDriveType ile türü belirle.
+    // A'dan Z'ye sürücü harflerini dene; GetDriveTypeW ile türü belirle.
     use windows::Win32::Storage::FileSystem::GetDriveTypeW;
-    use windows::Win32::Storage::FileSystem::{
+    // Not: DRIVE_* sabitleri `WindowsProgramming` modülündedir, `FileSystem`
+    // modülünde değildir.
+    use windows::Win32::System::WindowsProgramming::{
         DRIVE_FIXED, DRIVE_REMOTE, DRIVE_REMOVABLE, DRIVE_UNKNOWN,
     };
     let mut devices = Vec::new();

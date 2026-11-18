@@ -477,7 +477,7 @@ pub mod dpapi {
             CryptProtectData(&mut input, None, None, None, None, 0, &mut output)
                 .map_err(|_| StoreError::Crypto)?;
             let out = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
-            windows::Win32::System::Memory::LocalFree(windows::Win32::Foundation::HLOCAL(
+            windows::Win32::Foundation::LocalFree(windows::Win32::Foundation::HLOCAL(
                 output.pbData as *mut _,
             ));
             Ok(out)
@@ -499,7 +499,7 @@ pub mod dpapi {
             CryptUnprotectData(&mut input, None, None, None, None, 0, &mut output)
                 .map_err(|_| StoreError::Decrypt)?;
             let out = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
-            windows::Win32::System::Memory::LocalFree(windows::Win32::Foundation::HLOCAL(
+            windows::Win32::Foundation::LocalFree(windows::Win32::Foundation::HLOCAL(
                 output.pbData as *mut _,
             ));
             Ok(out)
