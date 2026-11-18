@@ -58,5 +58,3 @@ argon2 = "0.5"
 rand = "0.8"
 walkdir = "2"
 tempfile = "3"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }

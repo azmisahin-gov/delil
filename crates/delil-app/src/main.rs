@@ -1,1 +1,1 @@
-// stub
+fn main() {}

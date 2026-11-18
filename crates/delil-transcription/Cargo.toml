@@ -12,8 +12,10 @@ thiserror = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 delil-core = { workspace = true }
+delil-audio = { workspace = true }
 
-[dependencies.candle-core]
+[dependencies.candle]
+package = "candle-core"
 version = "0.8"
 optional = true
 [dependencies.candle-nn]
@@ -28,7 +30,9 @@ optional = true
 
 [features]
 default = []
-candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
+candle = ["dep:candle", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
+decode = ["delil-audio/decode"]
+full = ["candle", "decode"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
