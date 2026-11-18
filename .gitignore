@@ -1,0 +1,12 @@
+/target
+**/*.rs.bk
+*.pdb
+# Yerel vaka deposu ve test çıktıları
+/cases/
+/out/
+*.delilcase
+*.udf.tmp
+# Model ağırlıkları (paket dışı; ayrı dağıtılır)
+/models/*.safetensors
+/models/*.bin
+/models/*.gguf

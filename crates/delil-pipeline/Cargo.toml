@@ -1,0 +1,27 @@
+[package]
+name = "delil-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Uçtan uca otomatik iş akışı orkestrasyonu"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+delil-core = { workspace = true }
+delil-hash = { workspace = true }
+delil-case-store = { workspace = true }
+delil-evidence = { workspace = true }
+delil-audio = { workspace = true }
+delil-assignment = { workspace = true }
+delil-transcription = { workspace = true }
+delil-quality = { workspace = true }
+delil-report = { workspace = true }
+delil-udf = { workspace = true }
+delil-export = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

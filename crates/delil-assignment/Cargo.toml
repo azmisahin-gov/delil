@@ -1,0 +1,27 @@
+[package]
+name = "delil-assignment"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Görevlendirme belgesi okuma ve bilgi çıkarma"
+
+[dependencies]
+zip = { workspace = true }
+quick-xml = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+delil-core = { workspace = true }
+delil-udf = { workspace = true }
+
+[features]
+default = []
+ocr = ["dep:ocrs"]
+
+[dependencies.ocrs]
+version = "0.9"
+optional = true
+default-features = false
+
+[dev-dependencies]
+tempfile = { workspace = true }

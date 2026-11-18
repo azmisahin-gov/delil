@@ -1,0 +1,13 @@
+[package]
+name = "delil-report"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bilirkişi rapor modeli ve otomatik üretimi"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+delil-core = { workspace = true }

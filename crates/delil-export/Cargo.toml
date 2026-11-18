@@ -1,0 +1,18 @@
+[package]
+name = "delil-export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PDF, TXT ve JSON yardımcı çıktılar"
+
+[dependencies]
+printpdf = { version = "0.7", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+delil-core = { workspace = true }
+delil-report = { workspace = true }
+delil-udf = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

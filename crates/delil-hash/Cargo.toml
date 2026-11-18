@@ -1,0 +1,16 @@
+[package]
+name = "delil-hash"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "SHA-256 ve bütünlük doğrulama"
+
+[dependencies]
+sha2 = { workspace = true }
+hex = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+delil-core = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

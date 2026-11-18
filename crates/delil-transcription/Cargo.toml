@@ -1,0 +1,34 @@
+[package]
+name = "delil-transcription"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Yerel Whisper transkripsiyon motoru ve kuyruk"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+delil-core = { workspace = true }
+
+[dependencies.candle-core]
+version = "0.8"
+optional = true
+[dependencies.candle-nn]
+version = "0.8"
+optional = true
+[dependencies.candle-transformers]
+version = "0.8"
+optional = true
+[dependencies.tokenizers]
+version = "0.21"
+optional = true
+
+[features]
+default = []
+candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
