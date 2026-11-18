@@ -1,5 +1,12 @@
 # DELİL — Kullanıcı Kılavuzu (56.12 Bilirkişisi için)
 
+## İndirme
+
+Kurulum dosyasını indirin:
+<https://github.com/azmisahin-gov/delil/releases/latest>
+
+Ardından `docs/KURULUM.md` adımlarını izleyin.
+
 ## DELİL nedir?
 
 DELİL, **56.12 — Ses Kayıtlarının Metin Hâline Dönüştürülmesi** uzmanlık

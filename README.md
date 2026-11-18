@@ -6,6 +6,20 @@ DELİL, **56.12 — Ses Kayıtlarının Metin Hâline Dönüştürülmesi** uzma
 alanındaki bilirkişiler için geliştirilmiş, tek amaca odaklanmış bir Windows
 masaüstü uygulamasıdır. Yerel, çevrimdışı, otomatik ve istisna odaklı çalışır.
 
+## İndirme
+
+**Son sürüm:** <https://github.com/azmisahin-gov/delil/releases/latest>
+
+| Dosya | Açıklama |
+|---|---|
+| `DELIL-Setup-0.1.0-x64.exe` | Windows 11 x64 kurulum dosyası (~1.37 GB; uygulama + Whisper + OCR modelleri dahil) |
+| `DELIL-Setup-0.1.0-x64.exe.sha256` | Kurulum dosyasının SHA-256 checksum'ı |
+| `MODEL_MANIFEST.json` | Pakete dahil edilen model bileşenlerinin kaynak/sürüm/hash kaydı |
+
+Kurulum dosyası, kullanıcıdan **Rust, Cargo, Python, Node.js, FFmpeg veya ayrı
+model indirmesi istemeden** çalışır. Tüm bileşenler pakete dahildir ve kurulum
+çevrimdışı tamamlanır.
+
 ## Ürünün üç temel işlemi
 
 1. **DELİLİ AL** — Materyali algılar, envantere alır, güvenli biçimde kopyalar
