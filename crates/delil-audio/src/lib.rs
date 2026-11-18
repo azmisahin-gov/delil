@@ -193,6 +193,29 @@ pub fn detect_container(bytes: &[u8]) -> Option<Container> {
     None
 }
 
+/// Dosyanın yalnızca ilk `max` baytını okur (bellek dostu başlık okuma).
+///
+/// Uzun kayıtların tümünü belleğe almak bellek tükenmesine yol açabilir;
+/// kapsayıcı ve teknik envanter için başlık yeterlidir.
+pub fn read_header(path: &std::path::Path, max: usize) -> Result<Vec<u8>, AudioError> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(path)?;
+    let mut buf = vec![0u8; max];
+    let mut filled = 0usize;
+    loop {
+        let n = f.read(&mut buf[filled..])?;
+        if n == 0 {
+            break;
+        }
+        filled += n;
+        if filled >= max {
+            break;
+        }
+    }
+    buf.truncate(filled);
+    Ok(buf)
+}
+
 /// Dosya yolundan ilk baytları okuyup kapsayıcı algılar.
 pub fn detect_container_from_path(path: &std::path::Path) -> Result<Option<Container>, AudioError> {
     use std::io::Read;
@@ -292,7 +315,10 @@ fn parse_flac(bytes: &[u8], info: &mut AudioTechnicalInfo) {
 /// Dosya için teknik envanter çıkarır.
 pub fn inventory(path: &std::path::Path) -> Result<AudioTechnicalInfo, AudioError> {
     let mut info = AudioTechnicalInfo::default();
-    let bytes = std::fs::read(path)?;
+    // Yalnızca başlığı oku. Uzun kayıtlar (ör. 2 saatlik WAV ~1.4 GB) tümüyle
+    // belleğe alınırsa bellek tükenir; teknik envanter için ilk birkaç yüz
+    // kilobayt yeterlidir.
+    let bytes = read_header(path, 512 * 1024)?;
     let container = match detect_container(&bytes) {
         Some(c) => c,
         None => {
@@ -526,6 +552,48 @@ mod tests {
         assert_eq!(info.bit_depth, Some(16));
         assert!((info.duration_seconds - 2.0).abs() < 0.01);
         assert!(info.readable);
+    }
+
+    #[test]
+    fn inventory_does_not_load_whole_file() {
+        // Bellek dostu: 200 MB'lık bir WAV'ın envanteri hızlı ve düşük bellekli
+        // olmalı. Sadece başlık okunur.
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("buyuk.wav");
+        // 200 MB WAV üret (sıkıştırılamaz gerçek veri).
+        let sr = 16000u32;
+        let seconds = 200u32; // ~6.4 MB/s * ... aslında 16000*2 = 32KB/s -> ~6.4MB
+        let data_len = sr * seconds * 2;
+        let mut v = Vec::with_capacity(data_len as usize + 44);
+        v.extend_from_slice(b"RIFF");
+        v.extend_from_slice(&(36 + data_len).to_le_bytes());
+        v.extend_from_slice(b"WAVEfmt ");
+        v.extend_from_slice(&16u32.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&sr.to_le_bytes());
+        v.extend_from_slice(&(sr * 2).to_le_bytes());
+        v.extend_from_slice(&2u16.to_le_bytes());
+        v.extend_from_slice(&16u16.to_le_bytes());
+        v.extend_from_slice(b"data");
+        v.extend_from_slice(&data_len.to_le_bytes());
+        v.resize(v.len() + data_len as usize, 0);
+        std::fs::write(&p, &v).unwrap();
+        drop(v);
+
+        // read_header sınırlı okumalı.
+        let head = read_header(&p, 512 * 1024).unwrap();
+        assert_eq!(head.len(), 512 * 1024);
+
+        // Envanter doğru süreyi vermeli (dosya boyutundan, tümünü okumadan).
+        let info = inventory(&p).unwrap();
+        assert_eq!(info.sample_rate_hz, Some(sr));
+        assert_eq!(info.channels, Some(1));
+        assert!(
+            (info.duration_seconds - seconds as f64).abs() < 0.1,
+            "süre ~{seconds}s olmalı, bulunan {}",
+            info.duration_seconds
+        );
     }
 
     #[test]
