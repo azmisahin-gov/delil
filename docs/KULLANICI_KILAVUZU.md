@@ -108,10 +108,44 @@ Edinim **mantıksal dosya edinimidir**:
 - Kaynak aygıt formatlanmaz.
 - Veriler yalnızca yerel çalışma alanına kopyalanır.
 - Dizin yapısı ve dosya adları korunur.
+- Dosya tarihleri/son değişiklik zamanları değişmez.
 
-> Yazılımsal yazma koruması, **donanımsal yazma engelleyici ile eşdeğer
-> değildir**. Yüksek güvence gereken edinimlerde donanımsal yazma engelleyici
-> kullanmanız önerilir.
+### Yazma koruması
+
+Aygıt listesinde her sürücü için **gerçek** yazma koruması durumu gösterilir:
+
+- 🔒 **yazmaya kapalı (salt okunur)** — SD kartın fiziksel kilidi takılı veya
+  aygıt salt okunur bağlı. Windows bunu raporlar; DELİL ölçer.
+- ⚠ **yazmaya açık (uygulama yine de yazmaz)** — kilit yok.
+
+İsterseniz **"Salt okunur yap"** düğmesiyle aygıtı Windows düzeyinde salt
+okunur hâle getirebilirsiniz (diskpart; **yönetici yetkisi** gerekir). Bu
+işlem:
+- Aygıtı, siz "Korumayı kaldır" diyene kadar salt okunur tutar.
+- **Donanımsal yazma engelleyici ile eşdeğer değildir.**
+- Aygıt ilk bağlandığında Windows'un yazmış olabileceği ihtimali ortadan
+  kaldırmaz.
+
+> **Öneri:** Yüksek güvence gereken edinimlerde donanımsal yazma engelleyici
+> (write blocker) kullanın. Yazılımsal koruma, ilk bağlantı anını kapsamaz.
+
+### Birden fazla aygıt bağlıysa
+
+Uygulama, sistem diski dışındaki tüm harici aygıtları listeler. Birden fazla
+harici aygıt bağlıysa kaynak belirsizdir; uygulama bunu açıkça uyarır ve
+delil materyalini içeren aygıtı **siz seçersiniz**. Sistem diski hiçbir zaman
+otomatik seçilmez.
+
+### Aygıt mı, klasör mü?
+
+- **Aygıt seçmek** (USB/SD/harici disk): aygırın tamamı taranır ve içindeki
+  tüm dosyalar alınır. Bu, olağan kullanım yoludur.
+- **Klasör seçmek**: bilgisayarınızdaki belirli bir klasörü kaynak olarak
+  kullanmak istediğinizde (ör. önceden kopyalanmış materyal) kullanılır.
+  Aygıt seçtiyseniz ayrıca klasör seçmeniz **gerekmez**.
+
+Her iki durumda da uygulama, seçilen kaynağın altındaki tüm dosyaları
+envantere alır; tek tek ses dosyası seçmeniz istenmez.
 
 ---
 

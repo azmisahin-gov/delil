@@ -18,6 +18,14 @@ pub struct DelilApp {
     pub workflow: WorkflowState,
     /// Seçilen görevlendirme belgesi.
     pub assignment_path: Option<PathBuf>,
+    /// Seçilen belgeden çıkarılan görevlendirme bilgileri (önizleme).
+    pub assignment_preview: Option<delil_core::Assignment>,
+    /// Belge okuma hatası (varsa).
+    pub assignment_error: Option<String>,
+    /// Yazma koruması uygulanacak aygıt (kullanıcı onayı bekliyor).
+    pub pending_write_protect: Option<PathBuf>,
+    /// Yazma koruması kaldırılacak aygıt (kullanıcı onayı bekliyor).
+    pub pending_write_clear: Option<PathBuf>,
     /// Seçilen materyal kaynağı.
     pub material_path: Option<PathBuf>,
     /// Bilirkişi bilgileri.
@@ -71,6 +79,10 @@ impl DelilApp {
             screen: Screen::Home,
             workflow: WorkflowState::new(),
             assignment_path: None,
+            assignment_preview: None,
+            assignment_error: None,
+            pending_write_protect: None,
+            pending_write_clear: None,
             material_path: None,
             expert_name: String::new(),
             expert_title: String::new(),
@@ -176,7 +188,38 @@ impl DelilApp {
         }
     }
 
-    /// Aygıt listesini yeniler.
+    /// Görevlendirme belgesini seçildiği anda okur; çıkarılan bilgileri
+    /// özetler ve bilirkişi alanlarını belgeden ön-doldurur.
+    pub fn load_assignment(&mut self, path: &std::path::Path) {
+        self.assignment_path = Some(path.to_path_buf());
+        match delil_assignment::extract_assignment(path) {
+            Ok(a) => {
+                // Belgeden çıkan bilirkişi bilgileriyle boş alanları doldur.
+                if self.expert_name.trim().is_empty() {
+                    if let Some(n) = &a.expert.full_name {
+                        self.expert_name = n.clone();
+                    }
+                }
+                if self.expert_title.trim().is_empty() {
+                    if let Some(t) = &a.expert.title {
+                        self.expert_title = t.clone();
+                    }
+                }
+                if self.expert_registry.trim().is_empty() {
+                    if let Some(r) = &a.expert.registry_number {
+                        self.expert_registry = r.clone();
+                    }
+                }
+                self.assignment_preview = Some(a);
+                self.log("Görevlendirme belgesi okundu ve bilgiler çıkarıldı.");
+            }
+            Err(e) => {
+                self.log(format!("Görevlendirme okunamadı: {e}"));
+                self.assignment_error = Some(e.to_string());
+            }
+        }
+    }
+
     pub fn refresh_devices(&mut self) {
         self.devices = delil_evidence::detect_devices();
         self.log(format!("{} aygıt algılandı.", self.devices.len()));
@@ -342,22 +385,9 @@ fn dirs_case_root() -> Option<PathBuf> {
     )))
 }
 
-/// Transkripsiyon modeli mevcut mu?
+/// Transkripsiyon modeli mevcut mu? (arayüz ve motor aynı çözümleyiciyi kullanır)
 fn transcription_model_available() -> bool {
-    if let Ok(d) = std::env::var("DELIL_MODEL_DIR") {
-        let p = PathBuf::from(d);
-        if p.join("model.safetensors").exists() {
-            return true;
-        }
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            if parent.join("models").join("model.safetensors").exists() {
-                return true;
-            }
-        }
-    }
-    false
+    delil_transcription::find_model_dir().is_some()
 }
 
 /// Panik yükünden okunabilir bir mesaj çıkarır.

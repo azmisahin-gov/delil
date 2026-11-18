@@ -137,7 +137,8 @@ impl<'a> PipelineRunner<'a> {
             control: ControlFlag::new(),
             events: None,
             engine: None,
-            model_dir: std::env::var("DELIL_MODEL_DIR").ok().map(PathBuf::from),
+            // Arayüz ve motor aynı çözümleyiciyi kullanır (kurulumda models/).
+            model_dir: delil_transcription::find_model_dir(),
         }
     }
 
@@ -398,8 +399,21 @@ impl<'a> PipelineRunner<'a> {
             StepState::Running { progress: 0.0 },
             "Rapor hazırlanıyor",
         );
+        // Bilirkişi bilgileri: kullanıcının girdiği değer öncelikli; boş
+        // alanlar görevlendirme belgesinden çıkarılanlarla doldurulur.
+        let mut expert = self.config.expert.clone();
+        let from_doc = &case.assignment.expert;
+        if expert.full_name.is_none() {
+            expert.full_name = from_doc.full_name.clone();
+        }
+        if expert.title.is_none() {
+            expert.title = from_doc.title.clone();
+        }
+        if expert.registry_number.is_none() {
+            expert.registry_number = from_doc.registry_number.clone();
+        }
         let opts = delil_report::ReportOptions {
-            expert: self.config.expert.clone(),
+            expert,
             ..Default::default()
         };
         let report = delil_report::generate_report(&case, &opts)?;

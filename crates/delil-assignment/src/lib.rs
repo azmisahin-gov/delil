@@ -211,6 +211,23 @@ pub fn parse_assignment_text(text: &ExtractedText) -> Assignment {
         ),
         (&["şüpheli", "sanık"], LabelTarget::PartySuspect),
         (&["mağdur", "müşteki"], LabelTarget::PartyVictim),
+        (
+            &[
+                "bilirkişi adı",
+                "bilirkişi ad soyad",
+                "bilirkişinin adı",
+                "bilirkişi:",
+            ],
+            LabelTarget::ExpertName,
+        ),
+        (
+            &["bilirkişi unvan", "unvanı", "bilirkişinin unvanı"],
+            LabelTarget::ExpertTitle,
+        ),
+        (
+            &["sicil no", "sicil numarası", "bilirkişi sicil"],
+            LabelTarget::ExpertRegistry,
+        ),
     ];
 
     for (page_idx, page) in text.pages.iter().enumerate() {
@@ -281,6 +298,24 @@ pub fn parse_assignment_text(text: &ExtractedText) -> Assignment {
                                     raw_text: Some(line.trim().into()),
                                 });
                             }
+                            LabelTarget::ExpertName => {
+                                if a.expert.full_name.is_none() {
+                                    a.expert.full_name = Some(value);
+                                    a.field_sources.push(fs);
+                                }
+                            }
+                            LabelTarget::ExpertTitle => {
+                                if a.expert.title.is_none() {
+                                    a.expert.title = Some(value);
+                                    a.field_sources.push(fs);
+                                }
+                            }
+                            LabelTarget::ExpertRegistry => {
+                                if a.expert.registry_number.is_none() {
+                                    a.expert.registry_number = Some(value);
+                                    a.field_sources.push(fs);
+                                }
+                            }
                         }
                     }
                 }
@@ -310,6 +345,12 @@ enum LabelTarget {
     DueDate,
     PartySuspect,
     PartyVictim,
+    /// Görevlendirilen bilirkişinin adı soyadı.
+    ExpertName,
+    /// Bilirkişinin unvanı.
+    ExpertTitle,
+    /// Bilirkişinin sicil numarası.
+    ExpertRegistry,
 }
 
 impl LabelTarget {
@@ -323,6 +364,9 @@ impl LabelTarget {
             LabelTarget::DueDate => "due_date",
             LabelTarget::PartySuspect => "party_suspect",
             LabelTarget::PartyVictim => "party_victim",
+            LabelTarget::ExpertName => "expert_name",
+            LabelTarget::ExpertTitle => "expert_title",
+            LabelTarget::ExpertRegistry => "expert_registry",
         }
     }
 }
@@ -690,6 +734,33 @@ Bilirkişiye Sorulan Sorular:
             .parties
             .iter()
             .any(|p| p.role == "Mağdur" && p.name.contains("Mehmet")));
+    }
+
+    #[test]
+    fn extracts_expert_info_from_document() {
+        // Görevlendirme belgesi bilirkişiyi adlandırabilir; bu bilgiler
+        // çıkarılmalı ve rapora aktarılmalıdır.
+        let text = ExtractedText {
+            pages: vec![
+                "Dosya No: 2024/1\nBilirkişi: Dr. Ayşe Kaya\nUnvanı: Bilirkişi\nSicil No: 54321\n"
+                    .into(),
+            ],
+            method: DocumentReadMethod::PdfTextLayer,
+            document_kind: "PDF".into(),
+        };
+        let a = parse_assignment_text(&text);
+        assert_eq!(a.expert.full_name.as_deref(), Some("Dr. Ayşe Kaya"));
+        assert_eq!(a.expert.title.as_deref(), Some("Bilirkişi"));
+        assert_eq!(a.expert.registry_number.as_deref(), Some("54321"));
+        // Kaynak ilişkisi kaydedilmeli.
+        assert!(a.field_sources.iter().any(|f| f.field == "expert_name"));
+    }
+
+    #[test]
+    fn expert_info_absent_is_none() {
+        let a = parse_assignment_text(&sample_extracted());
+        // Örnek belgede bilirkişi bilgisi yok.
+        assert!(a.expert.full_name.is_none());
     }
 
     #[test]

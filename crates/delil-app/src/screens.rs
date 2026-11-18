@@ -4,6 +4,7 @@
 
 use crate::app::DelilApp;
 use delil_core::{PipelineStep, StepState};
+use std::path::PathBuf;
 
 /// Geçerli ekran.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,6 +126,89 @@ pub fn draw(app: &mut DelilApp, ctx: &egui::Context) {
         Screen::Review => draw_review(app, ui),
         Screen::Result => draw_result(app, ui),
     });
+
+    // Yazma koruması onay penceresi (kaynağı değiştiren işlem: açık onay).
+    draw_write_protect_dialog(app, ctx);
+}
+
+/// Yazma koruması uygulama/kaldırma onay penceresi.
+///
+/// Kaynağı etkileyen işlemler için **açık onay** alınır (şartname 4.3).
+fn draw_write_protect_dialog(app: &mut DelilApp, ctx: &egui::Context) {
+    let mut action: Option<(PathBuf, bool)> = None; // (yol, uygula?)
+    if let Some(p) = app.pending_write_protect.clone() {
+        egui::Window::new("Yazma koruması uygula")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label(format!("Aygıt: {}", p.display()));
+                ui.add_space(6.0);
+                ui.colored_label(
+                    egui::Color32::from_rgb(255, 200, 120),
+                    "Bu işlem aygıtı Windows düzeyinde SALT OKUNUR yapar \
+                     (diskpart; yönetici yetkisi gerekir).",
+                );
+                ui.label(
+                    "• Bu, donanımsal yazma engelleyici ile EŞDEĞER DEĞİLDİR.\n\
+                     • Aygıt ilk bağlandığında Windows'un yazmış olabileceği \
+                     ihtimali ortadan kaldırmaz.\n\
+                     • Kaldırılana kadar aygıt salt okunur kalır.",
+                );
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Salt okunur yap").clicked() {
+                        action = Some((p.clone(), true));
+                    }
+                    if ui.button("Vazgeç").clicked() {
+                        action = Some((p.clone(), false));
+                    }
+                });
+            });
+    } else if let Some(p) = app.pending_write_clear.clone() {
+        egui::Window::new("Yazma korumasını kaldır")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label(format!("Aygıt: {}", p.display()));
+                ui.add_space(6.0);
+                ui.colored_label(
+                    egui::Color32::from_rgb(255, 200, 120),
+                    "Bu işlem aygıtın salt okunur korumasını KALDIRIR.",
+                );
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Korumayı kaldır").clicked() {
+                        action = Some((p.clone(), false));
+                    }
+                    if ui.button("Vazgeç").clicked() {
+                        action = Some((p.clone(), true));
+                    }
+                });
+            });
+    }
+
+    if let Some((path, apply)) = action {
+        // Onay/iptal: her durumda bekleyen isteği temizle.
+        let was_protect = app.pending_write_protect.is_some();
+        app.pending_write_protect = None;
+        app.pending_write_clear = None;
+
+        if was_protect && apply {
+            match delil_evidence::apply_software_write_protection(&path) {
+                Ok(wp) => app.log(format!("Yazma koruması uygulandı: {}", wp.label_tr())),
+                Err(e) => app.log(format!("Yazma koruması uygulanamadı: {e}")),
+            }
+            app.refresh_devices();
+        } else if !was_protect && !apply {
+            match delil_evidence::clear_software_write_protection(&path) {
+                Ok(()) => app.log("Yazma koruması kaldırıldı.".to_string()),
+                Err(e) => app.log(format!("Koruma kaldırılamadı: {e}")),
+            }
+            app.refresh_devices();
+        }
+    }
 }
 
 /// Ana ekran (şartname 14.1).
@@ -179,7 +263,7 @@ fn draw_new(app: &mut DelilApp, ui: &mut egui::Ui) {
             if ui.button("Belge seç…").clicked() {
                 if let Some(p) = rfd_pick_file() {
                     app.log(format!("Görevlendirme: {}", p.display()));
-                    app.assignment_path = Some(p);
+                    app.load_assignment(&p);
                 }
             }
             match &app.assignment_path {
@@ -187,6 +271,65 @@ fn draw_new(app: &mut DelilApp, ui: &mut egui::Ui) {
                 None => ui.label("(seçilmedi — rapor zorunlu eksikleri isteyecek)"),
             };
         });
+        // Belgeden çıkarılan bilgileri göster (bilirkişi doğrulayabilsin).
+        if let Some(a) = &app.assignment_preview {
+            ui.add_space(4.0);
+            ui.separator();
+            ui.label("Belgeden çıkarılan bilgiler:");
+            egui::Grid::new("gorevlendirme_onizleme")
+                .num_columns(2)
+                .show(ui, |ui| {
+                    let row = |ui: &mut egui::Ui, k: &str, v: &Option<String>| {
+                        ui.label(k);
+                        match v {
+                            Some(s) if !s.trim().is_empty() => {
+                                ui.label(s);
+                            }
+                            _ => {
+                                ui.colored_label(
+                                    egui::Color32::from_rgb(200, 120, 0),
+                                    "(okunamadı)",
+                                );
+                            }
+                        }
+                        ui.end_row();
+                    };
+                    row(ui, "Dosya No:", &a.case_number);
+                    row(ui, "Mahkeme:", &a.court);
+                    row(ui, "Konu:", &a.subject);
+                    row(ui, "Görevlendirme tarihi:", &a.assignment_date_text);
+                    row(ui, "Teslim süresi:", &a.due_date_text);
+                    ui.label("Bilirkişi:");
+                    ui.label(a.expert.full_name.clone().unwrap_or_else(|| "—".into()));
+                    ui.end_row();
+                    ui.label("Sicil No:");
+                    ui.label(
+                        a.expert
+                            .registry_number
+                            .clone()
+                            .unwrap_or_else(|| "—".into()),
+                    );
+                    ui.end_row();
+                });
+            ui.label(format!(
+                "{} taraf, {} soru bulundu.",
+                a.parties.len(),
+                a.questions.len()
+            ));
+            if !a.questions.is_empty() {
+                ui.collapsing("Soruları göster", |ui| {
+                    for q in &a.questions {
+                        ui.label(format!("{}. {}", q.ordinal, q.original_text));
+                    }
+                });
+            }
+        }
+        if let Some(e) = &app.assignment_error {
+            ui.colored_label(
+                egui::Color32::from_rgb(200, 120, 0),
+                format!("Belge okunamadı: {e}"),
+            );
+        }
     });
 
     ui.add_space(8.0);
@@ -243,6 +386,24 @@ fn draw_new(app: &mut DelilApp, ui: &mut egui::Ui) {
                     if ui.button("Bu aygıtı kullan").clicked() {
                         app.material_path = Some(std::path::PathBuf::from(&d.root));
                     }
+                    // Yazılımsal salt okunur korumayı uygula/kaldır (açık istek).
+                    if wp == delil_core::WriteProtection::NotApplied {
+                        if ui
+                            .button("Salt okunur yap")
+                            .on_hover_text(
+                                "Bu aygıtı Windows düzeyinde salt okunur yapar (diskpart; \
+                                 yönetici yetkisi gerekir). Donanımsal yazma engelleyici ile \
+                                 eşdeğer değildir.",
+                            )
+                            .clicked()
+                        {
+                            app.pending_write_protect = Some(std::path::PathBuf::from(&d.root));
+                        }
+                    } else {
+                        if ui.button("Korumayı kaldır").clicked() {
+                            app.pending_write_clear = Some(std::path::PathBuf::from(&d.root));
+                        }
+                    }
                 }
             });
         }
@@ -253,6 +414,28 @@ fn draw_new(app: &mut DelilApp, ui: &mut egui::Ui) {
              Yazılımsal koruma, donanımsal yazma engelleyici ile eşdeğer değildir.",
         );
     });
+
+    // Birden fazla harici aygıt bağlıysa kaynak belirsizdir; kullanıcı seçer.
+    {
+        let external: Vec<&delil_evidence::DetectedDevice> =
+            app.devices.iter().filter(|d| !d.is_system_disk).collect();
+        if external.len() > 1 {
+            ui.add_space(6.0);
+            egui::Frame::none()
+                .fill(egui::Color32::from_rgb(50, 42, 20))
+                .inner_margin(8.0)
+                .show(ui, |ui| {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 200, 120),
+                        format!(
+                            "⚠ {} harici aygıt bağlı. Kaynak belirsiz; lütfen delil \
+                             materyalini içeren aygıtı yukarıdan 'Bu aygıtı kullan' ile seçin.",
+                            external.len()
+                        ),
+                    );
+                });
+        }
+    }
 
     ui.add_space(8.0);
     ui.group(|ui| {

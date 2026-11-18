@@ -15,6 +15,8 @@ pub struct Assignment {
     pub court: Option<String>,
     /// Dosya numarası.
     pub case_number: Option<String>,
+    /// Görevlendirme belgesinden çıkarılan bilirkişi bilgileri (varsa).
+    pub expert: ExpertInfo,
     /// Taraf bilgileri.
     pub parties: Vec<Party>,
     /// Görevlendirme tarihi (serbest metin + ayrıştırılmış tarih).

@@ -6,6 +6,11 @@
 //! tutulur. Kontrol ekranında belirsiz bölümler dinlenebilir, transkript
 //! düzeltilebilir ve soru yanıtları tamamlanabilir.
 
+// Windows'ta konsol penceresi açılmasını engeller: bu bir GUI uygulamasıdır.
+// (Konsol penceresi, kullanıcının "arka planda siyah ekran" olarak gördüğü
+// şeydi.)
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod screens;
 

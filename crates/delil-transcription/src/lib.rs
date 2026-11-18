@@ -77,6 +77,45 @@ pub fn check_model_files(dir: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+/// Whisper model dizinini otomatik bulur.
+///
+/// Arama sırası:
+/// 1. `DELIL_MODEL_DIR` ortam değişkeni.
+/// 2. Yürütülebilir dosyanın yanındaki `models/` (kurulum düzeni).
+/// 3. Yürütülebilir dosyanın bulunduğu dizin (model dosyaları doğrudan yanındaysa).
+/// 4. Geliştirme: depo kökündeki `models/`.
+///
+/// Kurulum paketi modeli `models/` altına koyar; kullanıcıdan indirme
+/// istenmez. Bu işlev, arayüz ile motorun **aynı** dizini bulmasını sağlar.
+pub fn find_model_dir() -> Option<std::path::PathBuf> {
+    let candidates: Vec<std::path::PathBuf> = {
+        let mut v = Vec::new();
+        if let Ok(d) = std::env::var("DELIL_MODEL_DIR") {
+            v.push(std::path::PathBuf::from(d));
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(parent) = exe.parent() {
+                v.push(parent.join("models"));
+                v.push(parent.to_path_buf());
+                // macOS uygulama paketi düzeni (geliştirme kolaylığı).
+                if let Some(res) = parent.parent() {
+                    v.push(res.join("Resources").join("models"));
+                }
+            }
+        }
+        v.push(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("..")
+                .join("models"),
+        );
+        v
+    };
+    candidates
+        .into_iter()
+        .find(|d| check_model_files(d).is_ok())
+}
+
 /// Bir ses dosyasını 16 kHz mono f32 örneklemeye çözer.
 ///
 /// Önce yerleşik WAV çözücü denenir (adli ses materyalinde en yaygın biçim).

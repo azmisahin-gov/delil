@@ -712,6 +712,97 @@ fn drive_letter(path: &Path) -> Option<String> {
     }
 }
 
+/// Yazılımsal salt okunur korumayı **uygular** (açık kullanıcı isteğiyle).
+///
+/// Windows'ta `diskpart` ile birimin salt okunur özniteliğini ayarlar. Bu:
+/// * **Yönetici yetkisi** gerektirir.
+/// * **Sistem düzeyinde** bir değişikliktir; birim `clear` edilene kadar salt
+///   okunur kalır.
+/// * Donanımsal yazma engelleyici ile **eşdeğer değildir** ve öyle
+///   gösterilmez. İlk bağlantı anındaki yazma ihtimalini ortadan kaldırmaz.
+///
+/// Uygulama sonrası durum yeniden **ölçülür**; başarı iddia edilmez.
+pub fn apply_software_write_protection(root: &Path) -> Result<WriteProtection, String> {
+    #[cfg(windows)]
+    {
+        let drive = drive_letter(root).ok_or_else(|| "Sürücü harfi belirlenemedi.".to_string())?;
+        let letter = drive.trim_end_matches(':').to_string();
+
+        // diskpart betiği: birimi seç ve salt okunur yap.
+        let script =
+            format!("select volume {letter}\r\nattributes volume set readonly\r\nexit\r\n");
+        let tmp = std::env::temp_dir().join("delil_write_protect.txt");
+        std::fs::write(&tmp, script).map_err(|e| format!("Betik yazılamadı: {e}"))?;
+
+        let out = std::process::Command::new("diskpart")
+            .arg("/s")
+            .arg(&tmp)
+            .output()
+            .map_err(|e| format!("diskpart çalıştırılamadı: {e}"))?;
+        let _ = std::fs::remove_file(&tmp);
+
+        let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+
+        // Durumu yeniden ölç (iddiaya güvenme).
+        let after = detect_windows_write_protection(root);
+        if after == WriteProtection::SoftwareReadOnly {
+            return Ok(after);
+        }
+        // Yönetici değilse diskpart hata verir.
+        if stdout.to_lowercase().contains("access is denied")
+            || stderr.to_lowercase().contains("access is denied")
+            || stdout.contains("Erişim")
+            || !out.status.success()
+        {
+            return Err(format!(
+                "Yazma koruması uygulanamadı (yönetici yetkisi gerekir). \
+                 Ayrıntı: {} {}",
+                stdout.trim(),
+                stderr.trim()
+            ));
+        }
+        Err(format!(
+            "Yazma koruması uygulandı ancak durum doğrulanamadı. Çıktı: {}",
+            stdout.trim()
+        ))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = root;
+        Err("Yazılımsal yazma koruması yalnızca Windows'ta uygulanabilir.".into())
+    }
+}
+
+/// Yazılımsal salt okunur korumayı **kaldırır** (açık kullanıcı isteğiyle).
+pub fn clear_software_write_protection(root: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let drive = drive_letter(root).ok_or_else(|| "Sürücü harfi belirlenemedi.".to_string())?;
+        let letter = drive.trim_end_matches(':').to_string();
+        let script =
+            format!("select volume {letter}\r\nattributes volume clear readonly\r\nexit\r\n");
+        let tmp = std::env::temp_dir().join("delil_write_clear.txt");
+        std::fs::write(&tmp, script).map_err(|e| format!("Betik yazılamadı: {e}"))?;
+        let out = std::process::Command::new("diskpart")
+            .arg("/s")
+            .arg(&tmp)
+            .output()
+            .map_err(|e| format!("diskpart çalıştırılamadı: {e}"))?;
+        let _ = std::fs::remove_file(&tmp);
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&out.stdout).to_string())
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = root;
+        Err("Yalnızca Windows.".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
