@@ -12,8 +12,8 @@ masaüstü uygulamasıdır. Yerel, çevrimdışı, otomatik ve istisna odaklı �
 
 | Dosya | Açıklama |
 |---|---|
-| `DELIL-Setup-0.1.3-x64.exe` | Windows 11 x64 kurulum dosyası (~1.37 GB; uygulama + Whisper + OCR modelleri dahil) |
-| `DELIL-Setup-0.1.3-x64.exe.sha256` | Kurulum dosyasının SHA-256 checksum'ı |
+| `DELIL-Setup-0.2.0-x64.exe` | Windows 11 x64 kurulum dosyası (~1.37 GB; uygulama + Whisper + OCR modelleri dahil) |
+| `DELIL-Setup-0.2.0-x64.exe.sha256` | Kurulum dosyasının SHA-256 checksum'ı |
 | `MODEL_MANIFEST.json` | Pakete dahil edilen model bileşenlerinin kaynak/sürüm/hash kaydı |
 
 Kurulum dosyası, kullanıcıdan **Rust, Cargo, Python, Node.js, FFmpeg veya ayrı

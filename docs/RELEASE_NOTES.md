@@ -1,10 +1,31 @@
 # DELİL — Sürüm Notları
 
-## DELİL 0.1.2 (Windows 11 x64)
+## DELİL 0.2.0 (Windows 11 x64)
 
 **Delili tak. Sesi çöz. UDF raporunu al.**
 
-### Bu sürümde düzeltilenler (0.1.1 → 0.1.2)
+### Bu sürümde yeni ve düzeltilenler (0.1.3 → 0.2.0)
+
+0. **Aynı incelemeye geri dönme.** Ana ekranda artık vaka listesi var: her vaka
+   için dosya no, tarih, materyal sayısı ve UDF durumu gösterilir; **Aç** ile
+   incelemeye devam edilir. Vaka üst klasörü değiştirilebilir.
+0. **'İncelemeyi başlat' düğmesi** artık üstte ve her zaman görünür (küçük
+   pencerelerde kaybolmaz); materyal seçilmeden devre dışıdır ve nedeni
+   açıklanır.
+0. **Ana ekrana gidince iş kaybolmaz:** üst çubukta 'İncelemeye dön' ve
+   'Sonuca dön' düğmeleri var.
+0. **Transkript düzenleme** yeniden tasarlandı: geniş, kaydırılabilir segment
+   tablosu (zaman / kalite / metin). **Zaman düğmesine tıklayınca ses o ana
+   gider ve oynar.** Her düğme (uygula / geri al / yinele / işaretle / kaydet /
+   onayla) işlem sonrası görünür durum mesajı verir.
+0. **Anlaşılamayan işaretleme** düğmesi eklendi.
+0. **Yazılımsal yazma koruması** artık `diskpart` yerine
+   `IOCTL_DISK_SET_DISK_ATTRIBUTES` ile uygulanır (daha güvenilir; birim
+   düzeyinde). `Persist=FALSE`: aygıt çıkarılana veya yeniden başlatılana
+   kadar geçerlidir. Sonuç yeniden ölçülür.
+
+### 0.1.x sürümlerinden devralınanlar (0.1.1 → 0.1.2)
+
 
 Kullanıcı geri bildirimiyle bulunan sorunlar giderildi:
 
@@ -120,7 +141,7 @@ engelleyici kullanılması önerilir.
 |---|---|---|
 | Whisper large-v3-turbo | `41f01f3f` (sabitlenmiş) | MIT |
 | ocrs OCR modelleri | `df0edd17` (sabitlenmiş) | CC-BY-SA-4.0 |
-| DELİL | 0.1.2 | MIT |
+| DELİL | 0.2.0 | MIT |
 
 Ayrıntılı hash ve kaynak bilgisi için `MODEL_MANIFEST.json` dosyasına bakın.
 
