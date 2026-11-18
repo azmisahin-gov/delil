@@ -1,0 +1,11 @@
+[package]
+name = "delil-quality"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Otomatik transkripsiyon kalite kontrolü"
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+delil-core = { workspace = true }

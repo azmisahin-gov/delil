@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test-linux:
+    name: Linux birim testleri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Sistem bağımlılıkları
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libasound2-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libx11-dev libxcursor-dev \
+            libxrandr-dev libxi-dev libgl1-mesa-dev libegl1-mesa-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Biçim kontrolü
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Testler
+        run: cargo test --workspace --no-fail-fast
+
+  test-features:
+    name: Ağır özellik derlemesi (candle + decode + ocr)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Sistem bağımlılıkları
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libasound2-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libwayland-dev libx11-dev libxcursor-dev \
+            libxrandr-dev libxi-dev libgl1-mesa-dev libegl1-mesa-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Transkripsiyon motoru (Candle) derleme
+        run: cargo build -p delil-transcription --features candle
+      - name: Ses çözme (Symphonia) testleri
+        run: cargo test -p delil-audio --features decode
+      - name: OCR bileşeni derleme
+        run: cargo build -p delil-assignment --features ocr
+
+  test-windows:
+    name: Windows 11 x64 testleri
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Testler
+        run: cargo test --workspace --no-fail-fast
+      - name: Üretim özellikleriyle derleme
+        run: cargo build --release -p delil-app --features production

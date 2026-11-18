@@ -1,0 +1,39 @@
+[package]
+name = "delil-assignment"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Görevlendirme belgesi okuma ve bilgi çıkarma"
+
+[dependencies]
+zip = { workspace = true }
+quick-xml = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+pdf-extract = { version = "0.12", default-features = false }
+delil-core = { workspace = true }
+delil-udf = { workspace = true }
+
+[dependencies.ocrs]
+version = "0.14"
+optional = true
+default-features = false
+features = ["rten"]
+
+# ocrs 0.14 özellikleri: export-wasm, onnx, rten
+
+[dependencies.rten]
+version = "0.28"
+optional = true
+
+[dependencies.image]
+version = "0.25"
+optional = true
+
+[features]
+default = []
+ocr = ["dep:ocrs", "dep:image", "dep:rten"]
+
+[dev-dependencies]
+tempfile = { workspace = true }

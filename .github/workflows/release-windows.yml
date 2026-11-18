@@ -1,0 +1,89 @@
+name: Release (Windows x64 kurulum dosyası)
+
+# Bu iş akışı, son kullanıcının indireceği Windows kurulum dosyasını üretir:
+#   DELIL-Setup-<sürüm>-x64.exe
+# ve GitHub Releases'e varlık (asset) olarak yükler.
+#
+# Tetikleme:
+#   * `v*` etiketi (ör. v0.1.0) push edildiğinde -> Release oluşturur.
+#   * Elle (workflow_dispatch) -> yalnızca artefakt üretir.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-installer:
+    name: Windows x64 kurulum dosyası üret
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Sürüm belirle
+        id: ver
+        shell: bash
+        run: |
+          VERSION="$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Sürüm: $VERSION"
+
+      - name: Whisper + OCR modellerini indir ve doğrula
+        shell: bash
+        run: |
+          bash scripts/fetch-models.sh
+          echo "--- MODEL_MANIFEST.json ---"
+          cat models/MODEL_MANIFEST.json
+
+      - name: Inno Setup kur
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe bulunamadı" }
+          echo "ISCC: $iscc"
+          echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Windows x64 hedefini ekle
+        run: rustup target add x86_64-pc-windows-msvc
+
+      - name: Üretim derlemesi + paketleme (kati)
+        shell: bash
+        run: |
+          bash scripts/package-windows.sh
+
+      - name: Kurulum dosyası ve checksum'ı yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: delil-windows-installer
+          path: |
+            dist/DELIL-Setup-*-x64.exe
+            dist/DELIL-Setup-*-x64.exe.sha256
+          if-no-files-found: error
+
+      - name: GitHub Release oluştur (etiket push'unda)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: DELİL ${{ steps.ver.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          body_path: docs/RELEASE_NOTES.md
+          files: |
+            dist/DELIL-Setup-*-x64.exe
+            dist/DELIL-Setup-*-x64.exe.sha256
+            models/MODEL_MANIFEST.json

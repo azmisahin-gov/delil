@@ -1,0 +1,23 @@
+[package]
+name = "delil-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "DELİL komut satırı arayüzü"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+delil-core = { workspace = true }
+delil-pipeline = { workspace = true }
+delil-case-store = { workspace = true }
+delil-report = { workspace = true }
+delil-udf = { workspace = true }
+delil-audio = { workspace = true }
+delil-evidence = { workspace = true }
+delil-transcription = { workspace = true }
+
+[[bin]]
+name = "delil"
+path = "src/main.rs"

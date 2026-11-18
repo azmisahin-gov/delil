@@ -1,0 +1,29 @@
+[package]
+name = "delil-case-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Şifreli yerel vaka deposu, yedekleme ve geri yükleme"
+
+[dependencies]
+aes-gcm = { workspace = true }
+argon2 = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+delil-core = { workspace = true }
+delil-hash = { workspace = true }
+base64 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+# Windows DPAPI: ana anahtarı kullanıcı hesabına bağlı olarak korumak için.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Win32_System_Memory"] }

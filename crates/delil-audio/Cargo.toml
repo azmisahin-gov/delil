@@ -1,0 +1,30 @@
+[package]
+name = "delil-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ses biçimi algılama, çözme ve teknik envanter"
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+delil-core = { workspace = true }
+
+[dependencies.symphonia]
+version = "0.5"
+optional = true
+features = ["all"]
+
+[dependencies.rodio]
+version = "0.19"
+optional = true
+default-features = false
+features = ["symphonia-mp3", "symphonia-flac", "symphonia-vorbis", "symphonia-wav"]
+
+[features]
+default = []
+decode = ["dep:symphonia"]
+playback = ["dep:rodio"]
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -1,0 +1,15 @@
+[package]
+name = "delil-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "DELİL çekirdek alan modeli"
+
+[dependencies]
+serde = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

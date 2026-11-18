@@ -1,0 +1,24 @@
+[package]
+name = "delil-update"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "İmzalı otomatik güncelleme yöneticisi"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+base64 = { workspace = true }
+thiserror = { workspace = true }
+zip = { workspace = true }
+tempfile = { workspace = true }
+
+[features]
+dev-sign = []
+
+[dev-dependencies]
+rand = { workspace = true }

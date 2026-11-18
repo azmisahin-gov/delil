@@ -1,0 +1,26 @@
+[package]
+name = "delil-evidence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Aygıt algılama, dosya bazlı edinim ve bütünlük doğrulama"
+
+[dependencies]
+walkdir = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+delil-core = { workspace = true }
+delil-hash = { workspace = true }
+delil-audio = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Storage_FileSystem", "Win32_System_WindowsProgramming", "Win32_System_Ioctl", "Win32_System_IO", "Win32_Security", "Win32_Foundation"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
