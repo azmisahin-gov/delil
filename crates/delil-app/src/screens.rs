@@ -366,15 +366,31 @@ fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 if ui.button(if app.playback.playing { "⏸ Duraklat" } else { "▶ Oynat" }).clicked() {
                     app.playback.toggle();
+                    if let Some(p) = &app.player {
+                        if app.playback.playing {
+                            p.play();
+                        } else {
+                            p.pause();
+                        }
+                    }
                 }
                 if ui.button("⏪ 5 sn geri").clicked() {
                     app.playback.rewind(5.0);
+                    if let Some(p) = &app.player {
+                        let _ = p.seek(app.playback.position_seconds);
+                    }
                 }
                 if ui.button("⏩ 5 sn ileri").clicked() {
                     app.playback.forward(5.0);
+                    if let Some(p) = &app.player {
+                        let _ = p.seek(app.playback.position_seconds);
+                    }
                 }
                 if ui.button(format!("Hız: {:.2}x", app.playback.rate.0)).clicked() {
                     app.playback.rate.next();
+                    if let Some(p) = &app.player {
+                        p.set_rate(&app.playback.rate);
+                    }
                 }
                 if ui.button("İşaretle").clicked() {
                     app.playback.add_marker("işaret", None);
@@ -383,6 +399,12 @@ fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
                     "{:.1}s / {:.1}s",
                     app.playback.position_seconds, app.playback.duration_seconds
                 ));
+                if app.player.is_none() {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(200, 120, 0),
+                        "(ses çıkışı yok)",
+                    );
+                }
             });
             ui.label(format!("Kanal: {}", app.playback.channel.label_tr()));
             if !app.playback.markers.is_empty() {

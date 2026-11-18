@@ -362,25 +362,13 @@ pub struct Header {
 }
 
 /// Altbilgi; sayfa numarası özellikleri taşıyabilir.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Footer {
     pub paragraphs: Vec<Paragraph>,
     pub page_number_spec: Option<String>,
     pub page_number_font_face: Option<String>,
     pub page_number_font_size: Option<f64>,
     pub page_number_color: Option<i32>,
-}
-
-impl Default for Footer {
-    fn default() -> Self {
-        Self {
-            paragraphs: Vec::new(),
-            page_number_spec: None,
-            page_number_font_face: None,
-            page_number_font_size: None,
-            page_number_color: None,
-        }
-    }
 }
 
 /// Stil tanımı.

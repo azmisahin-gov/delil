@@ -16,7 +16,6 @@ base64 = { workspace = true }
 thiserror = { workspace = true }
 zip = { workspace = true }
 tempfile = { workspace = true }
-delil-core = { workspace = true }
 
 [features]
 dev-sign = []

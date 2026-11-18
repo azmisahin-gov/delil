@@ -75,6 +75,11 @@ pub struct PipelineRunner<'a> {
     pub config: PipelineConfig,
     pub control: ControlFlag,
     pub events: Option<EventFn<'a>>,
+    /// Transkripsiyon motoru. Verilmezse model dizininden otomatik yüklenmeye
+    /// çalışılır; model yoksa açık hata verilir (simülasyon yapılmaz).
+    pub engine: Option<Box<dyn TranscriptionEngine>>,
+    /// Model dizini (motor verilmediğinde kullanılır).
+    pub model_dir: Option<PathBuf>,
 }
 
 impl<'a> PipelineRunner<'a> {
@@ -83,6 +88,8 @@ impl<'a> PipelineRunner<'a> {
             config,
             control: ControlFlag::new(),
             events: None,
+            engine: None,
+            model_dir: std::env::var("DELIL_MODEL_DIR").ok().map(PathBuf::from),
         }
     }
 
@@ -391,18 +398,26 @@ impl<'a> PipelineRunner<'a> {
             queue.enqueue(item);
         }
 
-        // Motor: verilmişse kullanılır (test/uygulama), yoksa model dizini
-        // yapılandırmasına göre yüklenir.
+        // Motor: çağıran tarafından verildiyse onu kullan; yoksa model
+        // dizininden gerçek Candle Whisper motorunu yüklemeyi dene. Model
+        // yoksa açık hata verilir; transkripsiyon simüle edilmez.
         let decode = |p: &Path| -> delil_transcription::Result<Vec<f32>> {
             delil_transcription::decode_audio_file(p)
         };
 
-        // Basit motor: gerçek model yoksa sessizlik üzerinden boş transkript
-        // üretmez; bunun yerine iş başarısız sayılır ve kullanıcıya bildirilir.
-        let mut engine = PlaceholderEngine::new();
+        let mut owned_engine: Option<Box<dyn TranscriptionEngine>> = self.engine.take();
+        if owned_engine.is_none() {
+            if let Some(dir) = self.model_dir.clone() {
+                owned_engine = load_candle_engine(&dir).ok().map(|e| e as Box<dyn TranscriptionEngine>);
+            }
+        }
+        let mut engine: Box<dyn TranscriptionEngine> = match owned_engine {
+            Some(e) => e,
+            None => Box::new(PlaceholderEngine::new()),
+        };
 
         let outcomes = queue.run_all(
-            &mut engine,
+            &mut *engine,
             &self.config.transcription,
             &self.control,
             &decode,
@@ -741,6 +756,29 @@ pub mod delil_report_to_udf {
 
         doc
     }
+}
+
+/// Gerçek Candle Whisper motorunu yükler (motor `candle` özelliğiyle derlenmişse).
+///
+/// Özellik kapalıysa veya model dosyaları eksikse hata döner; çağıran taraf
+/// yer tutucu motora düşer ve bu durum kullanıcıya açıkça bildirilir.
+#[cfg(feature = "candle")]
+fn load_candle_engine(
+    dir: &Path,
+) -> Result<Box<dyn TranscriptionEngine>> {
+    use delil_transcription::candle_whisper::{CandleWhisper, WhisperEngineConfig};
+    let cfg = WhisperEngineConfig::new(dir);
+    let engine = CandleWhisper::load(&cfg).map_err(|e| PipelineError::Transcription(e))?;
+    Ok(Box::new(engine))
+}
+
+#[cfg(not(feature = "candle"))]
+fn load_candle_engine(_dir: &Path) -> Result<Box<dyn TranscriptionEngine>> {
+    Err(PipelineError::Transcription(
+        delil_transcription::TranscriptionError::ModelMissing(
+            "Whisper motoru bu derlemede etkin değil (candle özelliği kapalı).".into(),
+        ),
+    ))
 }
 
 /// Gerçek model yüklenmeden kullanılan yer tutucu motor.

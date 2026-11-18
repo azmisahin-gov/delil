@@ -145,9 +145,13 @@ pub fn decode_to_16k_mono(path: &Path) -> Result<DecodedAudio, DecodeError> {
     })
 }
 
-fn append_mono(decoded: &symphonia::core::audio::AudioBufferRef, _channels: usize, out: &mut Vec<f32>) {
+fn append_mono(
+    decoded: &symphonia::core::audio::AudioBufferRef,
+    _channels: usize,
+    out: &mut Vec<f32>,
+) {
     use symphonia::core::audio::Signal;
-    use symphonia::core::sample::Sample;
+    use symphonia::core::conv::IntoSample;
     macro_rules! mix {
         ($buf:expr) => {{
             let frames = $buf.frames();
@@ -155,7 +159,8 @@ fn append_mono(decoded: &symphonia::core::audio::AudioBufferRef, _channels: usiz
             for f in 0..frames {
                 let mut acc = 0.0f32;
                 for c in 0..ch {
-                    acc += $buf.chan(c)[f].to_f32();
+                    let s: f32 = IntoSample::<f32>::into_sample($buf.chan(c)[f]);
+                    acc += s;
                 }
                 out.push(acc / ch as f32);
             }
@@ -171,6 +176,7 @@ fn append_mono(decoded: &symphonia::core::audio::AudioBufferRef, _channels: usiz
         symphonia::core::audio::AudioBufferRef::U24(b) => mix!(b),
         symphonia::core::audio::AudioBufferRef::U32(b) => mix!(b),
         symphonia::core::audio::AudioBufferRef::S8(b) => mix!(b),
+        symphonia::core::audio::AudioBufferRef::S24(b) => mix!(b),
         _ => {}
     }
 }

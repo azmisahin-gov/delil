@@ -22,11 +22,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.82"
 license = "MIT"
-authors = ["DELİL Geliştirici Ekibi"]
-repository = "https://github.com/azmisahin-gov/delil"
-description = "DELİL — 56.12 bilirkişileri için otomatik ses çözümleme ve UDF raporlama"
 
 [workspace.dependencies]
 delil-core = { path = "crates/delil-core" }

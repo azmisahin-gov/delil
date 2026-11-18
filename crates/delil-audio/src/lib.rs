@@ -12,11 +12,15 @@ use delil_core::AudioTechnicalInfo;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+#[cfg(feature = "playback")]
+pub mod player;
 pub mod waveform;
 
-#[cfg(feature = "symphonia")]
+#[cfg(feature = "decode")]
 pub mod decode;
 
+#[cfg(feature = "playback")]
+pub use player::AudioPlayer;
 pub use waveform::{
     ChannelSelection, Marker, PlaybackRate, PlaybackState, Waveform,
 };

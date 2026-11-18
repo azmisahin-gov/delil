@@ -23,5 +23,10 @@ delil-report = { workspace = true }
 delil-udf = { workspace = true }
 delil-export = { workspace = true }
 
+[features]
+default = []
+candle = ["delil-transcription/candle", "delil-transcription/decode"]
+full = ["candle"]
+
 [dev-dependencies]
 tempfile = { workspace = true }

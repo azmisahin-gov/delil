@@ -7,7 +7,7 @@
 //! bilirkişi tarafından yazılır veya onaylanır.
 
 use delil_core::{
-    Attachment, AttachmentId, Case, ExpertInfo, Party, Question, Report, ReportId, SignatureBlock,
+    Attachment, AttachmentId, Case, ExpertInfo, Question, Report, ReportId, SignatureBlock,
     TranscriptStatus,
 };
 use serde::{Deserialize, Serialize};

@@ -12,7 +12,7 @@ thiserror = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 delil-core = { workspace = true }
-delil-audio = { workspace = true }
+delil-audio = { workspace = true, optional = true }
 
 [dependencies.candle]
 package = "candle-core"
@@ -31,7 +31,7 @@ optional = true
 [features]
 default = []
 candle = ["dep:candle", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
-decode = ["delil-audio/decode"]
+decode = ["dep:delil-audio", "delil-audio/decode"]
 full = ["candle", "decode"]
 
 [dev-dependencies]

@@ -52,6 +52,8 @@ pub struct DelilApp {
     pub waveform: Option<delil_audio::Waveform>,
     /// Oynatma durumu.
     pub playback: delil_audio::PlaybackState,
+    /// Gerçek ses oynatıcı (ses çıkışı varsa).
+    pub player: Option<delil_audio::AudioPlayer>,
     /// Metin düzeltme alanı (seçili segment).
     pub edit_buffer: String,
     /// Düzeltilen segment sırası.
@@ -83,6 +85,7 @@ impl DelilApp {
             editor: None,
             waveform: None,
             playback: delil_audio::PlaybackState::default(),
+            player: delil_audio::AudioPlayer::new().ok(),
             edit_buffer: String::new(),
             edit_index: 0,
         }
@@ -114,6 +117,12 @@ impl DelilApp {
             if let Ok(samples) = delil_transcription::decode_audio_file(&p) {
                 self.playback.duration_seconds = samples.len() as f64 / 16000.0;
                 self.waveform = Some(delil_audio::Waveform::from_samples(&samples, 800));
+                // Gerçek oynatıcıya yükle (ses çıkışı varsa).
+                if let Some(player) = self.player.as_mut() {
+                    if let Err(e) = player.load(&p, self.playback.duration_seconds) {
+                        self.log(format!("Oynatıcı yüklenemedi: {e}"));
+                    }
+                }
             }
         }
         if let Some(ed) = &self.editor {

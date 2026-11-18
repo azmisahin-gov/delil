@@ -19,12 +19,6 @@ struct Span {
     len: usize,
 }
 
-impl Span {
-    fn end(&self) -> usize {
-        self.start + self.len
-    }
-}
-
 /// UDF belgesi kuran yardımcı.
 #[derive(Debug, Default)]
 pub struct UdfBuilder {
@@ -154,10 +148,6 @@ impl PoolBuilder {
             spans.push(Span { start, len: 1 });
         }
         spans
-    }
-
-    fn char_len(&self) -> usize {
-        self.pool.chars().count()
     }
 }
 
