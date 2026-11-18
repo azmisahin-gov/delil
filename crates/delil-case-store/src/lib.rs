@@ -173,6 +173,80 @@ pub struct CaseStore {
     pub root: PathBuf,
 }
 
+/// Bir vaka dizininin özeti (liste için).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CaseSummary {
+    /// Vaka kök dizini.
+    pub root: PathBuf,
+    /// Vaka kimliği (okunabildiyse).
+    pub case_id: Option<String>,
+    /// Dosya numarası (okunabildiyse).
+    pub case_number: Option<String>,
+    /// Oluşturulma zamanı (dosya değişiklik zamanı).
+    pub modified: Option<chrono::DateTime<chrono::Utc>>,
+    /// Materyal dosyası sayısı.
+    pub material_count: usize,
+    /// UDF raporu var mı?
+    pub has_udf: bool,
+    /// Vaka meta verisi okunabildi mi? (ana anahtar sorunu olabilir)
+    pub readable: bool,
+}
+
+/// Bir üst dizindeki tüm vakaları listeler (en yeni önce).
+///
+/// Her vakayı açmaya çalışır; açılamayanlar `readable=false` ile listelenir.
+pub fn list_cases(base: &Path) -> Vec<CaseSummary> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return out;
+    };
+    for e in entries.flatten() {
+        let path = e.path();
+        if !path.is_dir() {
+            continue;
+        }
+        if !path.join("case.json.enc").exists() {
+            continue;
+        }
+        let material_count = std::fs::read_dir(path.join("materials"))
+            .map(|r| {
+                r.flatten()
+                    .filter(|x| x.file_type().map(|t| t.is_file()).unwrap_or(false))
+                    .count()
+            })
+            .unwrap_or(0);
+        let has_udf = path.join("report").join("BILIRKISI_RAPORU.udf").exists();
+        let modified = e
+            .metadata()
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .map(chrono::DateTime::<chrono::Utc>::from);
+
+        let mut summary = CaseSummary {
+            root: path.clone(),
+            case_id: None,
+            case_number: None,
+            modified,
+            material_count,
+            has_udf,
+            readable: false,
+        };
+        // Meta veriyi açmayı dene (ana anahtar varsa).
+        if let Ok(store) = CaseStore::open(&path) {
+            if let Ok(key) = store.load_or_create_master_key() {
+                if let Ok(case) = store.load_case(&key) {
+                    summary.case_id = Some(case.id.to_string());
+                    summary.case_number = case.assignment.case_number.clone();
+                    summary.readable = true;
+                }
+            }
+        }
+        out.push(summary);
+    }
+    out.sort_by_key(|a| std::cmp::Reverse(a.modified));
+    out
+}
+
 impl CaseStore {
     /// Yeni bir vaka deposu oluşturur ve gerekli alt dizinleri hazırlar.
     pub fn create(root: impl Into<PathBuf>) -> Result<Self> {
@@ -198,6 +272,20 @@ impl CaseStore {
             return Err(StoreError::NoKey);
         }
         Ok(Self { root })
+    }
+
+    /// Bir vakayı başka bir konuma kopyalar (yeniden açma/kopyalama için).
+    pub fn copy_to(&self, dest: &Path) -> Result<()> {
+        std::fs::create_dir_all(dest)?;
+        for entry in walk_dir(&self.root)? {
+            let rel = entry.strip_prefix(&self.root).unwrap();
+            let target = dest.join(rel);
+            if let Some(p) = target.parent() {
+                std::fs::create_dir_all(p)?;
+            }
+            std::fs::copy(&entry, &target)?;
+        }
+        Ok(())
     }
 
     fn master_key_path(&self) -> PathBuf {

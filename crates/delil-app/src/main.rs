@@ -25,6 +25,10 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "DELİL",
         options,
-        Box::new(|_cc| Ok(Box::new(app::DelilApp::new()))),
+        Box::new(|_cc| {
+            let mut a = app::DelilApp::new();
+            a.on_start();
+            Ok(Box::new(a))
+        }),
     )
 }

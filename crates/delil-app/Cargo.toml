@@ -17,6 +17,7 @@ delil-case-store = { workspace = true }
 delil-evidence = { workspace = true }
 delil-audio = { workspace = true, features = ["playback"] }
 delil-transcription = { workspace = true }
+delil-udf = { workspace = true }
 delil-assignment = { workspace = true }
 
 [target.'cfg(windows)'.build-dependencies]

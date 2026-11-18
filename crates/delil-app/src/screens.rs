@@ -98,6 +98,15 @@ pub fn draw(app: &mut DelilApp, ctx: &egui::Context) {
                 if ui.button("Ayrıntı paneli").clicked() {
                     app.show_logs = !app.show_logs;
                 }
+                // Açık bir vaka varsa doğrudan ona dönülebilir (iş kaybolmaz).
+                if app.case.is_some() {
+                    if ui.button("Sonuca dön").clicked() {
+                        app.screen = Screen::Result;
+                    }
+                    if ui.button("İncelemeye dön").clicked() {
+                        app.screen = Screen::Review;
+                    }
+                }
                 if ui.button("Ana ekran").clicked() {
                     app.screen = Screen::Home;
                 }
@@ -213,258 +222,354 @@ fn draw_write_protect_dialog(app: &mut DelilApp, ctx: &egui::Context) {
 
 /// Ana ekran (şartname 14.1).
 fn draw_home(app: &mut DelilApp, ui: &mut egui::Ui) {
-    ui.add_space(24.0);
-    ui.vertical_centered(|ui| {
-        ui.heading("YENİ BİLİRKİŞİ RAPORU OLUŞTUR");
-        ui.add_space(8.0);
+    // Ana eylem: her zaman en üstte ve görünür.
+    ui.add_space(8.0);
+    ui.horizontal(|ui| {
         if ui
             .add_sized(
-                [320.0, 56.0],
-                egui::Button::new("➕  Yeni bilirkişi raporu oluştur"),
+                [300.0, 44.0],
+                egui::Button::new(
+                    egui::RichText::new("➕  Yeni bilirkişi raporu oluştur").size(16.0),
+                ),
             )
             .clicked()
         {
             app.screen = Screen::NewInvestigation;
         }
-    });
-    ui.add_space(24.0);
-    ui.separator();
-    ui.heading("Devam eden inceleme");
-    ui.label("Devam eden bir inceleme yok.");
-
-    ui.add_space(12.0);
-    ui.heading("Son oluşturulan raporlar");
-    if app.recent_reports.is_empty() {
-        ui.label("Henüz rapor oluşturulmadı.");
-    } else {
-        for r in &app.recent_reports {
-            ui.label(r);
+        if ui.button("⟳  Vakaları yenile").clicked() {
+            app.refresh_cases();
         }
+        if ui.button("📁  Vaka klasörünü değiştir").clicked() {
+            if let Some(p) = rfd_pick_folder() {
+                app.set_case_base_dir(p);
+            }
+        }
+    });
+    ui.label(
+        egui::RichText::new(format!("Vaka klasörü: {}", app.case_base_dir.display()))
+            .size(12.0)
+            .weak(),
+    );
+
+    ui.add_space(10.0);
+    ui.separator();
+
+    // Devam eden / tamamlanmış vakalar.
+    ui.heading("İncelemeler");
+    if app.cases.is_empty() {
+        ui.label("Henüz vaka yok. Yukarıdan yeni bir inceleme başlatın.");
+    } else {
+        egui::ScrollArea::vertical()
+            .max_height(360.0)
+            .show(ui, |ui| {
+                let mut open: Option<PathBuf> = None;
+                for c in &app.cases {
+                    egui::Frame::group(ui.style()).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                let title = c
+                                    .case_number
+                                    .clone()
+                                    .unwrap_or_else(|| "(dosya no yok)".into());
+                                ui.label(egui::RichText::new(title).strong().size(15.0));
+                                let when = c
+                                    .modified
+                                    .map(|t| {
+                                        t.with_timezone(&chrono::Local)
+                                            .format("%d.%m.%Y %H:%M")
+                                            .to_string()
+                                    })
+                                    .unwrap_or_default();
+                                let durum = if c.has_udf {
+                                    "UDF hazır"
+                                } else {
+                                    "devam ediyor"
+                                };
+                                ui.label(
+                                    egui::RichText::new(format!(
+                                        "{when} · {} materyal · {durum}",
+                                        c.material_count
+                                    ))
+                                    .size(12.0)
+                                    .weak(),
+                                );
+                                ui.label(
+                                    egui::RichText::new(c.root.display().to_string())
+                                        .size(11.0)
+                                        .weak(),
+                                );
+                                if !c.readable {
+                                    ui.colored_label(
+                                        egui::Color32::from_rgb(200, 120, 0),
+                                        "⚠ Bu vaka açılamıyor (ana anahtar sorunu).",
+                                    );
+                                }
+                            });
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.button("Aç").clicked() {
+                                        open = Some(c.root.clone());
+                                    }
+                                    if c.has_udf && ui.button("UDF'yi aç").clicked() {
+                                        open_path(
+                                            &c.root.join("report").join("BILIRKISI_RAPORU.udf"),
+                                        );
+                                    }
+                                    if ui.button("Klasörü aç").clicked() {
+                                        open_path(&c.root);
+                                    }
+                                },
+                            );
+                        });
+                    });
+                }
+                if let Some(p) = open {
+                    app.open_case(&p);
+                }
+            });
     }
 
-    ui.add_space(12.0);
+    ui.add_space(10.0);
+    ui.separator();
     ui.heading("Bekleyen inceleme uyarıları");
-    if app.devices.is_empty() {
+    let external = app.devices.iter().filter(|d| !d.is_system_disk).count();
+    if external == 0 {
         ui.label("Bağlı harici aygıt yok.");
     } else {
-        ui.label(format!("{} harici aygıt algılandı.", app.devices.len()));
+        ui.label(format!("{external} harici aygıt algılandı."));
     }
 }
 
 /// Yeni inceleme ekranı (şartname 14.2).
 fn draw_new(app: &mut DelilApp, ui: &mut egui::Ui) {
-    ui.heading("Yeni inceleme");
-    ui.add_space(8.0);
-
-    ui.group(|ui| {
-        ui.heading("Görevlendirme belgesi");
-        ui.label("PDF, UDF, DOCX, TXT veya taranmış görsel belge seçin.");
-        ui.horizontal(|ui| {
-            if ui.button("Belge seç…").clicked() {
-                if let Some(p) = rfd_pick_file() {
-                    app.log(format!("Görevlendirme: {}", p.display()));
-                    app.load_assignment(&p);
-                }
+    // Başlık ve ana eylem: her zaman üstte, kaydırılsa bile erişilebilir.
+    ui.horizontal(|ui| {
+        ui.heading("Yeni inceleme");
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button("Geri").clicked() {
+                app.screen = Screen::Home;
             }
-            match &app.assignment_path {
-                Some(p) => ui.label(format!("Seçildi: {}", p.display())),
-                None => ui.label("(seçilmedi — rapor zorunlu eksikleri isteyecek)"),
-            };
+            let ready = app.material_path.is_some();
+            let btn = egui::Button::new(egui::RichText::new("▶  İncelemeyi başlat").size(15.0));
+            let resp = ui.add_enabled(ready, btn.min_size(egui::vec2(200.0, 40.0)));
+            if resp.clicked() {
+                app.start_investigation();
+            }
+            if !ready {
+                resp.on_hover_text("Önce delil materyali (aygıt veya klasör) seçin.");
+            }
         });
-        // Belgeden çıkarılan bilgileri göster (bilirkişi doğrulayabilsin).
-        if let Some(a) = &app.assignment_preview {
-            ui.add_space(4.0);
-            ui.separator();
-            ui.label("Belgeden çıkarılan bilgiler:");
-            egui::Grid::new("gorevlendirme_onizleme")
-                .num_columns(2)
-                .show(ui, |ui| {
-                    let row = |ui: &mut egui::Ui, k: &str, v: &Option<String>| {
-                        ui.label(k);
-                        match v {
-                            Some(s) if !s.trim().is_empty() => {
-                                ui.label(s);
-                            }
-                            _ => {
-                                ui.colored_label(
-                                    egui::Color32::from_rgb(200, 120, 0),
-                                    "(okunamadı)",
-                                );
-                            }
-                        }
-                        ui.end_row();
-                    };
-                    row(ui, "Dosya No:", &a.case_number);
-                    row(ui, "Mahkeme:", &a.court);
-                    row(ui, "Konu:", &a.subject);
-                    row(ui, "Görevlendirme tarihi:", &a.assignment_date_text);
-                    row(ui, "Teslim süresi:", &a.due_date_text);
-                    ui.label("Bilirkişi:");
-                    ui.label(a.expert.full_name.clone().unwrap_or_else(|| "—".into()));
-                    ui.end_row();
-                    ui.label("Sicil No:");
-                    ui.label(
-                        a.expert
-                            .registry_number
-                            .clone()
-                            .unwrap_or_else(|| "—".into()),
-                    );
-                    ui.end_row();
-                });
-            ui.label(format!(
-                "{} taraf, {} soru bulundu.",
-                a.parties.len(),
-                a.questions.len()
-            ));
-            if !a.questions.is_empty() {
-                ui.collapsing("Soruları göster", |ui| {
-                    for q in &a.questions {
-                        ui.label(format!("{}. {}", q.ordinal, q.original_text));
-                    }
-                });
-            }
-        }
-        if let Some(e) = &app.assignment_error {
-            ui.colored_label(
-                egui::Color32::from_rgb(200, 120, 0),
-                format!("Belge okunamadı: {e}"),
-            );
-        }
     });
+    ui.add_space(4.0);
 
-    ui.add_space(8.0);
-    ui.group(|ui| {
-        ui.heading("Delil materyali");
-        ui.horizontal(|ui| {
-            if ui.button("Klasör seç…").clicked() {
-                if let Some(p) = rfd_pick_folder() {
-                    app.log(format!("Materyal: {}", p.display()));
-                    app.material_path = Some(p);
+    // Form alanları kaydırılabilir alanda; böylece küçük pencerelerde de
+    // tüm alanlara erişilebilir ve başlat düğmesi görünür kalır.
+    egui::ScrollArea::vertical()
+        .id_source("new_investigation_scroll")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            ui.group(|ui| {
+                ui.heading("Görevlendirme belgesi");
+                ui.label("PDF, UDF, DOCX, TXT veya taranmış görsel belge seçin.");
+                ui.horizontal(|ui| {
+                    if ui.button("Belge seç…").clicked() {
+                        if let Some(p) = rfd_pick_file() {
+                            app.log(format!("Görevlendirme: {}", p.display()));
+                            app.load_assignment(&p);
+                        }
+                    }
+                    match &app.assignment_path {
+                        Some(p) => ui.label(format!("Seçildi: {}", p.display())),
+                        None => ui.label("(seçilmedi — rapor zorunlu eksikleri isteyecek)"),
+                    };
+                });
+                // Belgeden çıkarılan bilgileri göster (bilirkişi doğrulayabilsin).
+                if let Some(a) = &app.assignment_preview {
+                    ui.add_space(4.0);
+                    ui.separator();
+                    ui.label("Belgeden çıkarılan bilgiler:");
+                    egui::Grid::new("gorevlendirme_onizleme")
+                        .num_columns(2)
+                        .show(ui, |ui| {
+                            let row = |ui: &mut egui::Ui, k: &str, v: &Option<String>| {
+                                ui.label(k);
+                                match v {
+                                    Some(s) if !s.trim().is_empty() => {
+                                        ui.label(s);
+                                    }
+                                    _ => {
+                                        ui.colored_label(
+                                            egui::Color32::from_rgb(200, 120, 0),
+                                            "(okunamadı)",
+                                        );
+                                    }
+                                }
+                                ui.end_row();
+                            };
+                            row(ui, "Dosya No:", &a.case_number);
+                            row(ui, "Mahkeme:", &a.court);
+                            row(ui, "Konu:", &a.subject);
+                            row(ui, "Görevlendirme tarihi:", &a.assignment_date_text);
+                            row(ui, "Teslim süresi:", &a.due_date_text);
+                            ui.label("Bilirkişi:");
+                            ui.label(a.expert.full_name.clone().unwrap_or_else(|| "—".into()));
+                            ui.end_row();
+                            ui.label("Sicil No:");
+                            ui.label(
+                                a.expert
+                                    .registry_number
+                                    .clone()
+                                    .unwrap_or_else(|| "—".into()),
+                            );
+                            ui.end_row();
+                        });
+                    ui.label(format!(
+                        "{} taraf, {} soru bulundu.",
+                        a.parties.len(),
+                        a.questions.len()
+                    ));
+                    if !a.questions.is_empty() {
+                        ui.collapsing("Soruları göster", |ui| {
+                            for q in &a.questions {
+                                ui.label(format!("{}. {}", q.ordinal, q.original_text));
+                            }
+                        });
+                    }
                 }
-            }
-            match &app.material_path {
-                Some(p) => ui.label(format!("Seçildi: {}", p.display())),
-                None => ui.label("(seçilmedi)"),
-            };
-        });
-        ui.separator();
-        ui.label("USB/SD algılama durumu:");
-        if ui.button("Aygıtları yenile").clicked() {
-            app.refresh_devices();
-        }
-        for d in &app.devices {
-            ui.horizontal(|ui| {
-                ui.label(format!("• {} — {}", d.root, d.kind.label_tr()));
-                if d.is_system_disk {
-                    ui.colored_label(egui::Color32::DARK_RED, "(sistem diski — seçilemez)");
-                } else {
-                    // Gerçek yazma koruması durumunu göster (donanımsal kilit
-                    // veya salt okunur bağlama). İddia değil, ölçümdür.
-                    let wp = delil_evidence::attempt_software_write_protection(
-                        std::path::Path::new(&d.root),
+                if let Some(e) = &app.assignment_error {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(200, 120, 0),
+                        format!("Belge okunamadı: {e}"),
                     );
-                    match wp {
-                        delil_core::WriteProtection::SoftwareReadOnly => {
-                            ui.colored_label(
-                                egui::Color32::from_rgb(0, 140, 0),
-                                "🔒 yazmaya kapalı (salt okunur)",
-                            );
-                        }
-                        delil_core::WriteProtection::HardwareWriteBlockerReported => {
-                            ui.colored_label(
-                                egui::Color32::from_rgb(0, 140, 0),
-                                "🔒 donanımsal engelleyici bildirildi",
-                            );
-                        }
-                        delil_core::WriteProtection::NotApplied => {
-                            ui.colored_label(
-                                egui::Color32::from_rgb(200, 120, 0),
-                                "⚠ yazmaya açık (uygulama yine de yazmaz)",
-                            );
-                        }
-                    }
-                    if ui.button("Bu aygıtı kullan").clicked() {
-                        app.material_path = Some(std::path::PathBuf::from(&d.root));
-                    }
-                    // Yazılımsal salt okunur korumayı uygula/kaldır (açık istek).
-                    if wp == delil_core::WriteProtection::NotApplied {
-                        if ui
-                            .button("Salt okunur yap")
-                            .on_hover_text(
-                                "Bu aygıtı Windows düzeyinde salt okunur yapar (diskpart; \
-                                 yönetici yetkisi gerekir). Donanımsal yazma engelleyici ile \
-                                 eşdeğer değildir.",
-                            )
-                            .clicked()
-                        {
-                            app.pending_write_protect = Some(std::path::PathBuf::from(&d.root));
-                        }
-                    } else {
-                        if ui.button("Korumayı kaldır").clicked() {
-                            app.pending_write_clear = Some(std::path::PathBuf::from(&d.root));
-                        }
-                    }
                 }
             });
-        }
-        ui.add_space(4.0);
-        ui.label(
-            "Not: DELİL kaynak materyale hiçbir koşulda yazmaz; yalnızca kopyalar. \
+
+            ui.add_space(8.0);
+            ui.group(|ui| {
+                ui.heading("Delil materyali");
+                ui.horizontal(|ui| {
+                    if ui.button("Klasör seç…").clicked() {
+                        if let Some(p) = rfd_pick_folder() {
+                            app.log(format!("Materyal: {}", p.display()));
+                            app.material_path = Some(p);
+                        }
+                    }
+                    match &app.material_path {
+                        Some(p) => ui.label(format!("Seçildi: {}", p.display())),
+                        None => ui.label("(seçilmedi)"),
+                    };
+                });
+                ui.separator();
+                ui.label("USB/SD algılama durumu:");
+                if ui.button("Aygıtları yenile").clicked() {
+                    app.refresh_devices();
+                }
+                for d in &app.devices {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("• {} — {}", d.root, d.kind.label_tr()));
+                        if d.is_system_disk {
+                            ui.colored_label(egui::Color32::DARK_RED, "(sistem diski — seçilemez)");
+                        } else {
+                            // Gerçek yazma koruması durumunu göster (donanımsal kilit
+                            // veya salt okunur bağlama). İddia değil, ölçümdür.
+                            let wp = delil_evidence::attempt_software_write_protection(
+                                std::path::Path::new(&d.root),
+                            );
+                            match wp {
+                                delil_core::WriteProtection::SoftwareReadOnly => {
+                                    ui.colored_label(
+                                        egui::Color32::from_rgb(0, 140, 0),
+                                        "🔒 yazmaya kapalı (salt okunur)",
+                                    );
+                                }
+                                delil_core::WriteProtection::HardwareWriteBlockerReported => {
+                                    ui.colored_label(
+                                        egui::Color32::from_rgb(0, 140, 0),
+                                        "🔒 donanımsal engelleyici bildirildi",
+                                    );
+                                }
+                                delil_core::WriteProtection::NotApplied => {
+                                    ui.colored_label(
+                                        egui::Color32::from_rgb(200, 120, 0),
+                                        "⚠ yazmaya açık (uygulama yine de yazmaz)",
+                                    );
+                                }
+                            }
+                            if ui.button("Bu aygıtı kullan").clicked() {
+                                app.material_path = Some(std::path::PathBuf::from(&d.root));
+                            }
+                            // Yazılımsal salt okunur korumayı uygula/kaldır (açık istek).
+                            if wp == delil_core::WriteProtection::NotApplied {
+                                if ui
+                                    .button("Salt okunur yap")
+                                    .on_hover_text(
+                                        "Bu aygıtı Windows düzeyinde salt okunur yapar (diskpart; \
+                                 yönetici yetkisi gerekir). Donanımsal yazma engelleyici ile \
+                                 eşdeğer değildir.",
+                                    )
+                                    .clicked()
+                                {
+                                    app.pending_write_protect =
+                                        Some(std::path::PathBuf::from(&d.root));
+                                }
+                            } else {
+                                if ui.button("Korumayı kaldır").clicked() {
+                                    app.pending_write_clear =
+                                        Some(std::path::PathBuf::from(&d.root));
+                                }
+                            }
+                        }
+                    });
+                }
+                ui.add_space(4.0);
+                ui.label(
+                    "Not: DELİL kaynak materyale hiçbir koşulda yazmaz; yalnızca kopyalar. \
              Yukarıdaki gösterge, aygıtın kendi yazma koruması durumudur. \
              Yazılımsal koruma, donanımsal yazma engelleyici ile eşdeğer değildir.",
-        );
-    });
+                );
+            });
 
-    // Birden fazla harici aygıt bağlıysa kaynak belirsizdir; kullanıcı seçer.
-    {
-        let external: Vec<&delil_evidence::DetectedDevice> =
-            app.devices.iter().filter(|d| !d.is_system_disk).collect();
-        if external.len() > 1 {
-            ui.add_space(6.0);
-            egui::Frame::none()
-                .fill(egui::Color32::from_rgb(50, 42, 20))
-                .inner_margin(8.0)
-                .show(ui, |ui| {
-                    ui.colored_label(
-                        egui::Color32::from_rgb(255, 200, 120),
-                        format!(
-                            "⚠ {} harici aygıt bağlı. Kaynak belirsiz; lütfen delil \
+            // Birden fazla harici aygıt bağlıysa kaynak belirsizdir; kullanıcı seçer.
+            {
+                let external: Vec<&delil_evidence::DetectedDevice> =
+                    app.devices.iter().filter(|d| !d.is_system_disk).collect();
+                if external.len() > 1 {
+                    ui.add_space(6.0);
+                    egui::Frame::none()
+                        .fill(egui::Color32::from_rgb(50, 42, 20))
+                        .inner_margin(8.0)
+                        .show(ui, |ui| {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(255, 200, 120),
+                                format!(
+                                    "⚠ {} harici aygıt bağlı. Kaynak belirsiz; lütfen delil \
                              materyalini içeren aygıtı yukarıdan 'Bu aygıtı kullan' ile seçin.",
-                            external.len()
-                        ),
-                    );
+                                    external.len()
+                                ),
+                            );
+                        });
+                }
+            }
+
+            ui.add_space(8.0);
+            ui.group(|ui| {
+                ui.heading("Bilirkişi bilgileri");
+                egui::Grid::new("bilirkisi").num_columns(2).show(ui, |ui| {
+                    ui.label("Adı Soyadı:");
+                    ui.text_edit_singleline(&mut app.expert_name);
+                    ui.end_row();
+                    ui.label("Unvan:");
+                    ui.text_edit_singleline(&mut app.expert_title);
+                    ui.end_row();
+                    ui.label("Sicil No:");
+                    ui.text_edit_singleline(&mut app.expert_registry);
+                    ui.end_row();
                 });
-        }
-    }
+            });
 
-    ui.add_space(8.0);
-    ui.group(|ui| {
-        ui.heading("Bilirkişi bilgileri");
-        egui::Grid::new("bilirkisi").num_columns(2).show(ui, |ui| {
-            ui.label("Adı Soyadı:");
-            ui.text_edit_singleline(&mut app.expert_name);
-            ui.end_row();
-            ui.label("Unvan:");
-            ui.text_edit_singleline(&mut app.expert_title);
-            ui.end_row();
-            ui.label("Sicil No:");
-            ui.text_edit_singleline(&mut app.expert_registry);
-            ui.end_row();
-        });
-    });
-
-    ui.add_space(12.0);
-    ui.horizontal(|ui| {
-        if ui
-            .add_sized([220.0, 40.0], egui::Button::new("İncelemeyi başlat"))
-            .clicked()
-        {
-            app.start_investigation();
-        }
-        if ui.button("Geri").clicked() {
-            app.screen = Screen::Home;
-        }
-    });
+            ui.add_space(12.0);
+        }); // ScrollArea sonu
 }
 
 /// Otomatik işlem ekranı (şartname 14.3).
@@ -642,61 +747,150 @@ fn draw_review(app: &mut DelilApp, ui: &mut egui::Ui) {
         ui.group(|ui| {
             ui.heading("Transkript düzenleme");
             if let Some(ed) = &app.editor {
-                egui::Grid::new("segment_edit")
-                    .num_columns(3)
-                    .striped(true)
+                ui.label(
+                    egui::RichText::new(
+                        "Bir satıra tıklayın: ses o noktaya gider ve oynatılır. \
+                         Metni düzenleyip 'Düzeltmeyi uygula' deyin.",
+                    )
+                    .size(12.0)
+                    .weak(),
+                );
+                ui.add_space(4.0);
+
+                // Segment tablosu: geniş ve kaydırılabilir; zaman, durum, metin.
+                let row_h = 22.0;
+                egui::ScrollArea::vertical()
+                    .id_source("segment_scroll")
+                    .max_height(320.0)
+                    .auto_shrink([false, false])
                     .show(ui, |ui| {
+                        let mut clicked: Option<usize> = None;
                         for (i, s) in ed.segments.iter().enumerate() {
-                            // Satıra tıklandığında sesi o noktaya götür.
-                            if ui
-                                .selectable_label(
-                                    app.edit_index == i,
-                                    format!("[{:.1}s-{:.1}s]", s.start_seconds, s.end_seconds),
-                                )
-                                .clicked()
-                            {
-                                app.edit_index = i;
-                                app.edit_buffer = s.text.clone();
-                                app.playback.seek_to_segment(s.start_seconds);
-                            }
-                            if s.quality != delil_core::QualityFlag::Normal {
-                                ui.colored_label(
-                                    egui::Color32::from_rgb(200, 120, 0),
-                                    s.quality.label_tr(),
+                            ui.horizontal(|ui| {
+                                ui.set_min_height(row_h);
+                                // Zaman düğmesi: tıkla-oynat.
+                                let time = format!("[{:>6.1}s]", s.start_seconds);
+                                if ui
+                                    .add_sized(
+                                        [80.0, row_h],
+                                        egui::Button::new(
+                                            egui::RichText::new(time).monospace().size(12.5),
+                                        ),
+                                    )
+                                    .on_hover_text("Bu ana git ve oynat")
+                                    .clicked()
+                                {
+                                    clicked = Some(i);
+                                }
+                                // Kalite göstergesi.
+                                let (qtext, qcolor) = match s.quality {
+                                    delil_core::QualityFlag::Normal => ("", egui::Color32::GRAY),
+                                    delil_core::QualityFlag::ReviewSuggested => {
+                                        ("kontrol", egui::Color32::from_rgb(200, 120, 0))
+                                    }
+                                    delil_core::QualityFlag::PriorityReview => {
+                                        ("öncelikli", egui::Color32::from_rgb(200, 60, 60))
+                                    }
+                                    delil_core::QualityFlag::Unintelligible => {
+                                        ("anlaşılamadı", egui::Color32::from_rgb(160, 0, 0))
+                                    }
+                                };
+                                ui.add_sized(
+                                    [92.0, row_h],
+                                    egui::Label::new(egui::RichText::new(qtext).color(qcolor)),
                                 );
-                            } else {
-                                ui.label("");
+                                // Metin: seçilebilir; tıklanınca satır seçilir.
+                                let is_sel = app.edit_index == i;
+                                let label = egui::RichText::new(&s.text).size(13.5);
+                                let label = if is_sel { label.strong() } else { label };
+                                if ui.add(egui::SelectableLabel::new(is_sel, label)).clicked() {
+                                    clicked = Some(i);
+                                }
+                                if let Some(sp) = &s.speaker {
+                                    ui.label(
+                                        egui::RichText::new(format!("({sp})")).size(11.0).weak(),
+                                    );
+                                }
+                            });
+                        }
+                        if let Some(i) = clicked {
+                            app.edit_index = i;
+                            app.edit_buffer = ed.segments[i].text.clone();
+                            // Sesi o ana götür ve oynat.
+                            let start = ed.segments[i].start_seconds;
+                            app.playback.seek_to_segment(start);
+                            if let Some(p) = &app.player {
+                                let _ = p.seek(start);
+                                p.play();
+                                app.playback.play();
                             }
-                            ui.label(&s.text);
-                            ui.end_row();
+                            app.status =
+                                Some(format!("Segment {i} seçildi ve oynatılıyor ({start:.1}s)."));
                         }
                     });
+
+                ui.add_space(6.0);
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(format!("Segment {}:", app.edit_index)).strong());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut app.edit_buffer)
+                            .desired_width(ui.available_width() - 160.0),
+                    );
+                });
                 ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.label(format!("Segment {} metni:", app.edit_index));
-                    ui.text_edit_singleline(&mut app.edit_buffer);
-                });
-                ui.horizontal(|ui| {
-                    if ui.button("Düzeltmeyi uygula").clicked() {
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button("✔ Düzeltmeyi uygula").clicked() {
                         app.apply_text_edit();
+                        app.status = Some(format!("Segment {} düzeltildi.", app.edit_index));
                     }
-                    if ui.button("Geri al").clicked() {
+                    if ui.button("↶ Geri al").clicked() {
                         if let Some(ed) = app.editor.as_mut() {
-                            ed.undo();
+                            let r = ed.undo();
+                            app.status = Some(match r {
+                                Some(_) => "Son düzenleme geri alındı.".into(),
+                                None => "Geri alınacak düzenleme yok.".into(),
+                            });
                         }
                     }
-                    if ui.button("Yinele").clicked() {
+                    if ui.button("↷ Yinele").clicked() {
                         if let Some(ed) = app.editor.as_mut() {
-                            ed.redo();
+                            let r = ed.redo();
+                            app.status = Some(match r {
+                                Some(_) => "Düzenleme yeniden uygulandı.".into(),
+                                None => "Yinelenecek düzenleme yok.".into(),
+                            });
                         }
                     }
-                    if ui.button("Sürüm olarak kaydet").clicked() {
+                    if ui.button("Anlaşılamayan işaretle").clicked() {
+                        if let Some(ed) = app.editor.as_mut() {
+                            let idx = app.edit_index;
+                            let cur = ed
+                                .segments
+                                .get(idx)
+                                .map(|s| s.marked_unintelligible)
+                                .unwrap_or(false);
+                            let _ = ed.apply(delil_core::EditOperation::SetUnintelligible {
+                                index: idx,
+                                marked: !cur,
+                            });
+                            app.status =
+                                Some(format!("Segment {idx} anlaşılamayan işareti değiştirildi."));
+                        }
+                    }
+                    if ui.button("💾 Sürüm olarak kaydet").clicked() {
                         app.commit_edits();
+                        app.status = Some("Düzenlemeler yeni sürüm olarak kaydedildi.".into());
                     }
-                    if ui.button("Onayla").clicked() {
+                    if ui.button("✅ Onayla").clicked() {
                         app.approve_transcript();
+                        app.status = Some("Transkript bilirkişi tarafından onaylandı.".into());
                     }
                 });
+                if let Some(s) = &app.status {
+                    ui.add_space(2.0);
+                    ui.colored_label(egui::Color32::from_rgb(0, 140, 0), s);
+                }
             } else {
                 ui.label("Düzenlemek için yukarıdan bir transkript seçin.");
             }

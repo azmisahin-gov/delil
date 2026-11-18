@@ -36,6 +36,12 @@ pub struct DelilApp {
     pub devices: Vec<delil_evidence::DetectedDevice>,
     /// Aygıt değişiklik izleyicisi (USB/SD otomatik algılama).
     pub watcher: Option<delil_evidence::DeviceWatcher>,
+    /// Vaka kök dizini (kullanıcı tarafından seçilebilir).
+    pub case_base_dir: PathBuf,
+    /// Bilinen vakaların listesi.
+    pub cases: Vec<delil_case_store::CaseSummary>,
+    /// Açık vakanın kök dizini.
+    pub current_case_root: Option<PathBuf>,
     /// Teknik log (ayrıntı paneli).
     pub log: Vec<String>,
     /// Ayrıntı paneli açık mı?
@@ -70,6 +76,8 @@ pub struct DelilApp {
     pub edit_buffer: String,
     /// Düzeltilen segment sırası.
     pub edit_index: usize,
+    /// Kullanıcıya gösterilen son durum/işlem mesajı.
+    pub status: Option<String>,
 }
 
 impl DelilApp {
@@ -89,6 +97,9 @@ impl DelilApp {
             expert_registry: String::new(),
             devices,
             watcher: Some(delil_evidence::DeviceWatcher::start()),
+            case_base_dir: case_base_dir(),
+            cases: Vec::new(),
+            current_case_root: None,
             log: vec!["DELİL başlatıldı.".to_string()],
             show_logs: false,
             rx: None,
@@ -106,6 +117,7 @@ impl DelilApp {
             player: delil_audio::AudioPlayer::new().ok(),
             edit_buffer: String::new(),
             edit_index: 0,
+            status: None,
         }
     }
 
@@ -225,10 +237,76 @@ impl DelilApp {
         self.log(format!("{} aygıt algılandı.", self.devices.len()));
     }
 
+    /// Vaka listesini yeniler.
+    pub fn refresh_cases(&mut self) {
+        self.cases = delil_case_store::list_cases(&self.case_base_dir);
+        self.log(format!("{} vaka bulundu.", self.cases.len()));
+    }
+
+    /// Var olan bir vakayı açar (devam eden incelemeye dön).
+    pub fn open_case(&mut self, root: &std::path::Path) {
+        match delil_case_store::CaseStore::open(root) {
+            Ok(store) => match store.load_or_create_master_key() {
+                Ok(key) => match store.load_case(&key) {
+                    Ok(case) => {
+                        self.udf_path =
+                            Some(store.root.join("report").join("BILIRKISI_RAPORU.udf"));
+                        // UDF varsa doğrulama özetini yeniden üret.
+                        if let Some(p) = &self.udf_path {
+                            if p.exists() {
+                                if let Ok(v) = delil_udf::validate_udf(p) {
+                                    self.validation_summary = v.summary_tr();
+                                }
+                            }
+                        }
+                        self.transcription_status = Some(if case.transcripts.is_empty() {
+                            delil_pipeline::TranscriptionOutcome::NotRequested
+                        } else {
+                            delil_pipeline::TranscriptionOutcome::Completed {
+                                transcribed: case.transcripts.len(),
+                                total: case.audio_assets.len(),
+                            }
+                        });
+                        self.current_case_root = Some(store.root.clone());
+                        self.case = Some(case);
+                        self.editor = None;
+                        self.selected_transcript = 0;
+                        self.workflow.finished = true;
+                        self.screen = Screen::Review;
+                        self.log(format!("Vaka açıldı: {}", store.root.display()));
+                    }
+                    Err(e) => {
+                        self.log(format!("Vaka yüklenemedi: {e}"));
+                        self.error = Some(format!("Vaka yüklenemedi: {e}"));
+                    }
+                },
+                Err(e) => {
+                    self.log(format!("Ana anahtar açılamadı: {e}"));
+                    self.error = Some(format!(
+                        "Vaka ana anahtarı açılamadı: {e}. Bu vaka başka bir Windows \
+                         kullanıcı hesabıyla oluşturulmuş olabilir."
+                    ));
+                }
+            },
+            Err(e) => {
+                self.log(format!("Vaka açılamadı: {e}"));
+                self.error = Some(format!("Vaka açılamadı: {e}"));
+            }
+        }
+    }
+
+    /// Vaka üst dizinini değiştirir.
+    pub fn set_case_base_dir(&mut self, dir: PathBuf) {
+        self.case_base_dir = dir;
+        self.refresh_cases();
+    }
+
     /// İncelemeyi başlatır.
     pub fn start_investigation(&mut self) {
-        let mut cfg =
-            PipelineConfig::new(dirs_case_root().unwrap_or_else(|| PathBuf::from("./delil-vaka")));
+        // Yeni vaka dizini oluştur (kullanıcının seçtiği üst dizinde).
+        let case_root = new_case_dir(&self.case_base_dir);
+        self.current_case_root = Some(case_root.clone());
+        let mut cfg = PipelineConfig::new(case_root);
         cfg.assignment_path = self.assignment_path.clone();
         cfg.material_source = self.material_path.clone();
         if let Some(m) = &self.material_path {
@@ -367,8 +445,16 @@ impl Default for DelilApp {
     }
 }
 
-/// Varsayılan vaka kök dizini.
-fn dirs_case_root() -> Option<PathBuf> {
+impl DelilApp {
+    /// Uygulama başladığında bir kez çağrılır: vaka listesini yükler.
+    pub fn on_start(&mut self) {
+        self.refresh_cases();
+    }
+}
+
+// Vaka dizini yardımcıları.
+/// Vakaların saklandığı üst dizin.
+fn case_base_dir() -> PathBuf {
     let base = std::env::var("DELIL_CASE_DIR")
         .ok()
         .map(PathBuf::from)
@@ -377,12 +463,18 @@ fn dirs_case_root() -> Option<PathBuf> {
                 .or_else(|_| std::env::var("HOME"))
                 .ok()
                 .map(|h| PathBuf::from(h).join("DELIL").join("vakalar"))
-        })?;
+        })
+        .unwrap_or_else(|| PathBuf::from("./delil-vakalar"));
     let _ = std::fs::create_dir_all(&base);
-    Some(base.join(format!(
+    base
+}
+
+/// Yeni bir vaka dizini yolu üretir.
+fn new_case_dir(base: &std::path::Path) -> PathBuf {
+    base.join(format!(
         "vaka-{}",
         chrono::Local::now().format("%Y%m%d-%H%M%S")
-    )))
+    ))
 }
 
 /// Transkripsiyon modeli mevcut mu? (arayüz ve motor aynı çözümleyiciyi kullanır)

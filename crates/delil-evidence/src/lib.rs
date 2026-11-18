@@ -714,58 +714,30 @@ fn drive_letter(path: &Path) -> Option<String> {
 
 /// Yazılımsal salt okunur korumayı **uygular** (açık kullanıcı isteğiyle).
 ///
-/// Windows'ta `diskpart` ile birimin salt okunur özniteliğini ayarlar. Bu:
-/// * **Yönetici yetkisi** gerektirir.
-/// * **Sistem düzeyinde** bir değişikliktir; birim `clear` edilene kadar salt
-///   okunur kalır.
-/// * Donanımsal yazma engelleyici ile **eşdeğer değildir** ve öyle
-///   gösterilmez. İlk bağlantı anındaki yazma ihtimalini ortadan kaldırmaz.
+/// Windows'ta `IOCTL_DISK_SET_DISK_ATTRIBUTES` + `DISK_ATTRIBUTE_READ_ONLY`
+/// kullanılır. Bu yöntem `diskpart`'a göre daha güvenilirdir ve birim
+/// düzeyinde çalışır. Yine de **yönetici yetkisi** gerekebilir.
 ///
-/// Uygulama sonrası durum yeniden **ölçülür**; başarı iddia edilmez.
+/// Önemli:
+/// * Bu koruma **yazılımsaldır**; donanımsal yazma engelleyici ile **eşdeğer
+///   değildir** ve öyle gösterilmez.
+/// * `Persist=FALSE` kullanılır: ayar, aygıt çıkarılana veya sistem yeniden
+///   başlatılana kadar geçerlidir. Delil aygıtı kalıcı olarak değiştirilmez.
+/// * Uygulama sonrası durum **yeniden ölçülür**; başarı iddia edilmez.
 pub fn apply_software_write_protection(root: &Path) -> Result<WriteProtection, String> {
     #[cfg(windows)]
     {
-        let drive = drive_letter(root).ok_or_else(|| "Sürücü harfi belirlenemedi.".to_string())?;
-        let letter = drive.trim_end_matches(':').to_string();
-
-        // diskpart betiği: birimi seç ve salt okunur yap.
-        let script =
-            format!("select volume {letter}\r\nattributes volume set readonly\r\nexit\r\n");
-        let tmp = std::env::temp_dir().join("delil_write_protect.txt");
-        std::fs::write(&tmp, script).map_err(|e| format!("Betik yazılamadı: {e}"))?;
-
-        let out = std::process::Command::new("diskpart")
-            .arg("/s")
-            .arg(&tmp)
-            .output()
-            .map_err(|e| format!("diskpart çalıştırılamadı: {e}"))?;
-        let _ = std::fs::remove_file(&tmp);
-
-        let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-
-        // Durumu yeniden ölç (iddiaya güvenme).
+        set_read_only_windows(root, true)?;
         let after = detect_windows_write_protection(root);
         if after == WriteProtection::SoftwareReadOnly {
-            return Ok(after);
+            Ok(after)
+        } else {
+            Err(
+                "Koruma uygulandı ancak doğrulanamadı (aygıt hâlâ yazılabilir görünüyor). \
+                 Yönetici yetkisiyle çalıştırmayı deneyin."
+                    .into(),
+            )
         }
-        // Yönetici değilse diskpart hata verir.
-        if stdout.to_lowercase().contains("access is denied")
-            || stderr.to_lowercase().contains("access is denied")
-            || stdout.contains("Erişim")
-            || !out.status.success()
-        {
-            return Err(format!(
-                "Yazma koruması uygulanamadı (yönetici yetkisi gerekir). \
-                 Ayrıntı: {} {}",
-                stdout.trim(),
-                stderr.trim()
-            ));
-        }
-        Err(format!(
-            "Yazma koruması uygulandı ancak durum doğrulanamadı. Çıktı: {}",
-            stdout.trim()
-        ))
     }
     #[cfg(not(windows))]
     {
@@ -778,29 +750,76 @@ pub fn apply_software_write_protection(root: &Path) -> Result<WriteProtection, S
 pub fn clear_software_write_protection(root: &Path) -> Result<(), String> {
     #[cfg(windows)]
     {
-        let drive = drive_letter(root).ok_or_else(|| "Sürücü harfi belirlenemedi.".to_string())?;
-        let letter = drive.trim_end_matches(':').to_string();
-        let script =
-            format!("select volume {letter}\r\nattributes volume clear readonly\r\nexit\r\n");
-        let tmp = std::env::temp_dir().join("delil_write_clear.txt");
-        std::fs::write(&tmp, script).map_err(|e| format!("Betik yazılamadı: {e}"))?;
-        let out = std::process::Command::new("diskpart")
-            .arg("/s")
-            .arg(&tmp)
-            .output()
-            .map_err(|e| format!("diskpart çalıştırılamadı: {e}"))?;
-        let _ = std::fs::remove_file(&tmp);
-        if out.status.success() {
-            Ok(())
-        } else {
-            Err(String::from_utf8_lossy(&out.stdout).to_string())
-        }
+        set_read_only_windows(root, false)
     }
     #[cfg(not(windows))]
     {
         let _ = root;
         Err("Yalnızca Windows.".into())
     }
+}
+
+/// Windows'ta sürücü/birim için salt okunur özniteliğini ayarlar.
+#[cfg(windows)]
+fn set_read_only_windows(root: &Path, read_only: bool) -> Result<(), String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+    use windows::Win32::System::Ioctl::{
+        DISK_ATTRIBUTE_READ_ONLY, IOCTL_DISK_SET_DISK_ATTRIBUTES, SET_DISK_ATTRIBUTES,
+    };
+    use windows::Win32::System::IO::DeviceIoControl;
+
+    let drive = drive_letter(root).ok_or_else(|| "Sürücü harfi belirlenemedi.".to_string())?;
+    let device = format!("\\\\.\\{drive}");
+    let wide: Vec<u16> = device.encode_utf16().chain(std::iter::once(0)).collect();
+
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            (GENERIC_READ | GENERIC_WRITE).0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            None,
+        )
+    }
+    .map_err(|e| format!("Aygıt açılamadı ({device}): {e}. Yönetici yetkisi gerekebilir."))?;
+
+    let mut attrs = SET_DISK_ATTRIBUTES {
+        Version: std::mem::size_of::<SET_DISK_ATTRIBUTES>() as u32,
+        Persist: windows::Win32::Foundation::BOOLEAN(0),
+        Reserved1: [0u8; 3],
+        Attributes: if read_only {
+            DISK_ATTRIBUTE_READ_ONLY
+        } else {
+            0
+        },
+        AttributesMask: DISK_ATTRIBUTE_READ_ONLY,
+        Reserved2: [0u32; 4],
+    };
+    let mut returned: u32 = 0;
+    let res = unsafe {
+        DeviceIoControl(
+            handle,
+            IOCTL_DISK_SET_DISK_ATTRIBUTES,
+            Some(&mut attrs as *mut _ as *const core::ffi::c_void),
+            std::mem::size_of::<SET_DISK_ATTRIBUTES>() as u32,
+            None,
+            0,
+            Some(&mut returned),
+            None,
+        )
+    };
+    unsafe {
+        let _ = CloseHandle(handle);
+    }
+    res.map_err(|e| {
+        format!("Salt okunur özniteliği ayarlanamadı: {e}. Yönetici yetkisi gerekebilir.")
+    })
 }
 
 #[cfg(test)]
